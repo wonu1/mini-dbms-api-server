@@ -127,9 +127,6 @@
   <line x1="385" y1="476" x2="400" y2="476" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
   <line x1="555" y1="476" x2="570" y2="476" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
 
-  <!-- Unlock label -->
-  <rect x="520" y="510" width="120" height="22" rx="11" fill="#1a0a0a" stroke="#ef4444" stroke-width="0.8" stroke-opacity="0.4"/>
-  <text x="580" y="525" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="600">🔓 Lock 해제</text>
 
   <!-- Arrow: Engine → Storage -->
   <line x1="400" y1="570" x2="400" y2="605" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
