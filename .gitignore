@@ -83,3 +83,6 @@ db_engine/logs/*.log
 .codex
 AGENTS.md
 agents.md
+
+# Benchmark outputs
+bench/results/
