@@ -14,7 +14,7 @@ static void bench_print_usage(const char *argv0) {
     const char *program = argv0 ? argv0 : "bench_client";
 
     fprintf(stderr,
-            "Usage: %s [--host HOST] [--port PORT] [--workers N] [--requests N] [--scenario select|insert]\n",
+            "Usage: %s [--host HOST] [--port PORT] [--workers N] [--requests N] [--scenario select|select_range_1000|insert]\n",
             program);
 }
 

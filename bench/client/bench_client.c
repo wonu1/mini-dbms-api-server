@@ -56,6 +56,11 @@ static int parse_scenario(const char *text, BenchScenario *out_scenario) {
         return BENCH_OK;
     }
 
+    if (strcmp(text, "select_range_1000") == 0) {
+        *out_scenario = BENCH_SCENARIO_SELECT_RANGE_1000;
+        return BENCH_OK;
+    }
+
     if (strcmp(text, "insert") == 0) {
         *out_scenario = BENCH_SCENARIO_INSERT;
         return BENCH_OK;
@@ -136,6 +141,10 @@ static int build_sql(char *sql_buffer,
         written = snprintf(sql_buffer,
                            sql_capacity,
                            "SELECT * FROM users WHERE id = 1;");
+    } else if (scenario == BENCH_SCENARIO_SELECT_RANGE_1000) {
+        written = snprintf(sql_buffer,
+                           sql_capacity,
+                           "SELECT * FROM users WHERE id BETWEEN 1 AND 1000;");
     } else {
         written = snprintf(sql_buffer,
                            sql_capacity,
@@ -258,6 +267,8 @@ const char *bench_scenario_name(BenchScenario scenario) {
     switch (scenario) {
         case BENCH_SCENARIO_SELECT:
             return "select";
+        case BENCH_SCENARIO_SELECT_RANGE_1000:
+            return "select_range_1000";
         case BENCH_SCENARIO_INSERT:
             return "insert";
         default:

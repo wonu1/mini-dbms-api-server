@@ -12,6 +12,7 @@
  */
 typedef enum {
     BENCH_SCENARIO_SELECT,
+    BENCH_SCENARIO_SELECT_RANGE_1000,
     BENCH_SCENARIO_INSERT
 } BenchScenario;
 

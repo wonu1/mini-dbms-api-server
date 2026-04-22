@@ -15,10 +15,10 @@ CLIENT_WORKERS="${SWEEP_CLIENT_WORKERS:-32}"
 REQUESTS="${SWEEP_REQUESTS:-80000}"
 REPEAT="${SWEEP_REPEAT:-3}"
 WORKERS_START="${SWEEP_WORKERS_START:-1}"
-WORKERS_END="${SWEEP_WORKERS_END:-100}"
+WORKERS_END="${SWEEP_WORKERS_END:-30}"
 BENCH_TIMEOUT_SEC="${SWEEP_BENCH_TIMEOUT_SEC:-900}"
 KEEP_TMP="${SWEEP_KEEP_TMP:-0}"
-SCENARIOS="${SWEEP_SCENARIOS:-select insert}"
+SCENARIOS="${SWEEP_SCENARIOS:-select select_range_1000}"
 
 SERVER_PID=""
 TMP_ROOT=""
@@ -115,7 +115,18 @@ validate_select_path() {
     printf '%s\n' "$body" >"$out_file"
     require_response_fragment "$body" '"status":"ok"'
     require_response_fragment "$body" '"rows":['
-    require_response_fragment "$body" '"row_count":'
+    require_response_fragment "$body" '"row_count":1'
+}
+
+validate_select_range_path() {
+    local out_file="$1"
+    local body
+
+    body="$(post_query "SELECT * FROM users WHERE id BETWEEN 1 AND 1000;")"
+    printf '%s\n' "$body" >"$out_file"
+    require_response_fragment "$body" '"status":"ok"'
+    require_response_fragment "$body" '"rows":['
+    require_response_fragment "$body" '"row_count":1000'
 }
 
 validate_insert_path() {
@@ -128,6 +139,44 @@ validate_insert_path() {
     printf '%s\n' "$body" >"$out_file"
     require_response_fragment "$body" '"status":"ok"'
     require_response_fragment "$body" '"affected_rows":1'
+}
+
+scenario_expected_rows() {
+    case "$1" in
+        select)
+            echo 1
+            ;;
+        select_range_1000)
+            echo 1000
+            ;;
+        insert)
+            echo 1
+            ;;
+        *)
+            echo 0
+            ;;
+    esac
+}
+
+validate_scenario_path() {
+    local scenario="$1"
+    local out_file="$2"
+
+    case "$scenario" in
+        select)
+            validate_select_path "$out_file"
+            ;;
+        select_range_1000)
+            validate_select_range_path "$out_file"
+            ;;
+        insert)
+            validate_insert_path "$out_file"
+            ;;
+        *)
+            echo "unsupported validation scenario: $scenario" >&2
+            return 1
+            ;;
+    esac
 }
 
 parse_bench_output() {
@@ -197,6 +246,7 @@ for (scenario, server_workers), rows in sorted(groups.items()):
     elapsed_sec = [float(row["elapsed_sec"]) for row in rows]
     failures = [int(row["failure"]) for row in rows]
     attempted = [float(row["attempted_req_per_sec"]) for row in rows]
+    rows_per_sec = [float(row["estimated_rows_per_sec"]) for row in rows]
 
     record = {
         "scenario": scenario,
@@ -207,6 +257,9 @@ for (scenario, server_workers), rows in sorted(groups.items()):
         "max_success_per_sec": f"{max(success_per_sec):.2f}",
         "median_elapsed_sec": f"{statistics.median(elapsed_sec):.6f}",
         "median_attempted_req_per_sec": f"{statistics.median(attempted):.2f}",
+        "median_estimated_rows_per_sec": f"{statistics.median(rows_per_sec):.2f}",
+        "min_estimated_rows_per_sec": f"{min(rows_per_sec):.2f}",
+        "max_estimated_rows_per_sec": f"{max(rows_per_sec):.2f}",
         "max_failure": str(max(failures)),
         "total_failures": str(sum(failures)),
     }
@@ -229,6 +282,9 @@ with open(medians_csv, "w", encoding="utf-8", newline="") as handle:
             "max_success_per_sec",
             "median_elapsed_sec",
             "median_attempted_req_per_sec",
+            "median_estimated_rows_per_sec",
+            "min_estimated_rows_per_sec",
+            "max_estimated_rows_per_sec",
             "max_failure",
             "total_failures",
         ],
@@ -242,6 +298,7 @@ with open(summary_txt, "w", encoding="utf-8") as handle:
         handle.write(
             f"{scenario}: best_worker={best['server_workers']}, "
             f"median_success_per_sec={best['median_success_per_sec']}, "
+            f"median_estimated_rows_per_sec={best['median_estimated_rows_per_sec']}, "
             f"max_failure={best['max_failure']}\n"
         )
 PY
@@ -267,6 +324,8 @@ run_case() {
     local attempted_req_per_sec
     local success_per_sec
     local failure_rate_pct
+    local expected_rows_per_query
+    local estimated_rows_per_sec
 
     if [[ "$scenario" == "insert" ]]; then
         cp "$BASELINE_USERS" "$TMP_REPO/db_engine/data/users.dat"
@@ -304,11 +363,21 @@ run_case() {
         success_per_sec \
         failure_rate_pct <<<"$parsed"
 
+    expected_rows_per_query="$(scenario_expected_rows "$scenario")"
+    estimated_rows_per_sec="$(python3 - "$success_per_sec" "$expected_rows_per_query" <<'PY'
+import sys
+
+success_per_sec = float(sys.argv[1])
+expected_rows = int(sys.argv[2])
+print(f"{success_per_sec * expected_rows:.2f}")
+PY
+)"
+
     printf '%s\n' \
-        "${RUN_ID},${GIT_BRANCH},${GIT_COMMIT},${scenario},${server_workers},${repeat_index},${QUEUE_CAPACITY},${CLIENT_WORKERS},${REQUESTS},${success},${failure},${elapsed_sec},${attempted_req_per_sec},${success_per_sec},${failure_rate_pct},${bench_exit_code},${case_started_at},${case_finished_at},${server_log},${bench_log}" \
+        "${RUN_ID},${GIT_BRANCH},${GIT_COMMIT},${scenario},${server_workers},${repeat_index},${QUEUE_CAPACITY},${CLIENT_WORKERS},${REQUESTS},${expected_rows_per_query},${success},${failure},${elapsed_sec},${attempted_req_per_sec},${success_per_sec},${estimated_rows_per_sec},${failure_rate_pct},${bench_exit_code},${case_started_at},${case_finished_at},${server_log},${bench_log}" \
         >>"$RUNS_CSV"
 
-    echo "[${scenario}] worker=${server_workers} repeat=${repeat_index} success=${success} failure=${failure} success_per_sec=${success_per_sec}"
+    echo "[${scenario}] worker=${server_workers} repeat=${repeat_index} success=${success} failure=${failure} success_per_sec=${success_per_sec} estimated_rows_per_sec=${estimated_rows_per_sec}"
 }
 
 trap cleanup EXIT
@@ -337,7 +406,7 @@ METADATA_JSON="$RESULTS_DIR/metadata.json"
 SUMMARY_TXT="$RESULTS_DIR/run_summary.txt"
 
 printf '%s\n' \
-    "run_id,git_branch,git_commit,scenario,server_workers,repeat_index,server_queue_capacity,client_workers,requests,success,failure,elapsed_sec,attempted_req_per_sec,success_per_sec,failure_rate_pct,bench_exit_code,case_started_at,case_finished_at,server_log_path,bench_log_path" \
+    "run_id,git_branch,git_commit,scenario,server_workers,repeat_index,server_queue_capacity,client_workers,requests,expected_rows_per_query,success,failure,elapsed_sec,attempted_req_per_sec,success_per_sec,estimated_rows_per_sec,failure_rate_pct,bench_exit_code,case_started_at,case_finished_at,server_log_path,bench_log_path" \
     >"$RUNS_CSV"
 
 TMP_ROOT="$(mktemp -d /tmp/mini-dbms-worker-sweep-XXXXXX)"
@@ -352,24 +421,24 @@ make -C "$TMP_REPO" all >"$RESULTS_DIR/build.log" 2>&1
 BASELINE_USERS="$TMP_ROOT/users.dat.base"
 cp "$TMP_REPO/db_engine/data/users.dat" "$BASELINE_USERS"
 
-VALIDATION_SERVER_LOG="$RAW_DIR/server-validation.log"
-start_server 4 "$VALIDATION_SERVER_LOG"
-validate_select_path "$RESULTS_DIR/validation_select_response.json"
-stop_server
-
-cp "$BASELINE_USERS" "$TMP_REPO/db_engine/data/users.dat"
-start_server 4 "$VALIDATION_SERVER_LOG"
-validate_insert_path "$RESULTS_DIR/validation_insert_response.json"
-stop_server
-cp "$BASELINE_USERS" "$TMP_REPO/db_engine/data/users.dat"
-
 read -r -a SCENARIO_LIST <<<"$SCENARIOS"
 for scenario in "${SCENARIO_LIST[@]}"; do
-    if [[ "$scenario" != "select" && "$scenario" != "insert" ]]; then
+    if [[ "$scenario" != "select" && "$scenario" != "select_range_1000" && "$scenario" != "insert" ]]; then
         echo "unsupported scenario in SWEEP_SCENARIOS: $scenario" >&2
         exit 1
     fi
 done
+
+VALIDATION_SERVER_LOG="$RAW_DIR/server-validation.log"
+for scenario in "${SCENARIO_LIST[@]}"; do
+    if [[ "$scenario" == "insert" ]]; then
+        cp "$BASELINE_USERS" "$TMP_REPO/db_engine/data/users.dat"
+    fi
+    start_server 4 "$VALIDATION_SERVER_LOG"
+    validate_scenario_path "$scenario" "$RESULTS_DIR/validation_${scenario}_response.json"
+    stop_server
+done
+cp "$BASELINE_USERS" "$TMP_REPO/db_engine/data/users.dat"
 
 STARTED_AT="$(date --iso-8601=seconds)"
 for scenario in "${SCENARIO_LIST[@]}"; do
@@ -383,39 +452,66 @@ FINISHED_AT="$(date --iso-8601=seconds)"
 
 build_summary_csv "$RUNS_CSV" "$MEDIANS_CSV" "$SUMMARY_TXT"
 
-python3 - "$METADATA_JSON" <<PY
+python3 - "$METADATA_JSON" "${RESULTS_DIR}" "${RUNS_CSV}" "${MEDIANS_CSV}" ${BENCH_TIMEOUT_SEC} ${PORT} ${QUEUE_CAPACITY} ${CLIENT_WORKERS} ${REQUESTS} ${REPEAT} ${WORKERS_START} ${WORKERS_END} "${SCENARIOS}" "${KEEP_TMP}" "${TMP_REPO}" "${RUN_ID}" "${GIT_BRANCH}" "${GIT_COMMIT}" "${STARTED_AT}" "${FINISHED_AT}" "${REPO_ROOT}" "${RAW_DIR}" <<'PY'
 import json
+import sys
 
+(
+    metadata_path,
+    results_dir,
+    runs_csv,
+    medians_csv,
+    bench_timeout_sec,
+    port,
+    queue_capacity,
+    client_workers,
+    requests,
+    repeat,
+    workers_start,
+    workers_end,
+    scenarios_text,
+    keep_tmp,
+    temporary_repo,
+    run_id,
+    git_branch,
+    git_commit,
+    started_at,
+    finished_at,
+    repo_root,
+    raw_dir,
+) = sys.argv[1:]
+
+scenarios = scenarios_text.split()
 metadata = {
-    "run_id": "${RUN_ID}",
-    "git_branch": "${GIT_BRANCH}",
-    "git_commit": "${GIT_COMMIT}",
-    "started_at": "${STARTED_AT}",
-    "finished_at": "${FINISHED_AT}",
-    "repo_root": "${REPO_ROOT}",
-    "results_dir": "${RESULTS_DIR}",
-    "raw_dir": "${RAW_DIR}",
-    "temporary_repo": "${TMP_REPO}" if "${KEEP_TMP}" == "1" else None,
-    "port": ${PORT},
-    "queue_capacity": ${QUEUE_CAPACITY},
-    "client_workers": ${CLIENT_WORKERS},
-    "requests": ${REQUESTS},
-    "repeat": ${REPEAT},
-    "workers_start": ${WORKERS_START},
-    "workers_end": ${WORKERS_END},
-    "scenarios": "${SCENARIOS}".split(),
-    "bench_timeout_sec": ${BENCH_TIMEOUT_SEC},
+    "run_id": run_id,
+    "git_branch": git_branch,
+    "git_commit": git_commit,
+    "started_at": started_at,
+    "finished_at": finished_at,
+    "repo_root": repo_root,
+    "results_dir": results_dir,
+    "raw_dir": raw_dir,
+    "temporary_repo": temporary_repo if keep_tmp == "1" else None,
+    "port": int(port),
+    "queue_capacity": int(queue_capacity),
+    "client_workers": int(client_workers),
+    "requests": int(requests),
+    "repeat": int(repeat),
+    "workers_start": int(workers_start),
+    "workers_end": int(workers_end),
+    "scenarios": scenarios,
+    "bench_timeout_sec": int(bench_timeout_sec),
     "validation_files": {
-        "select": "${RESULTS_DIR}/validation_select_response.json",
-        "insert": "${RESULTS_DIR}/validation_insert_response.json",
+        scenario: f"{results_dir}/validation_{scenario}_response.json"
+        for scenario in scenarios
     },
     "csv_files": {
-        "runs": "${RUNS_CSV}",
-        "medians": "${MEDIANS_CSV}",
+        "runs": runs_csv,
+        "medians": medians_csv,
     },
 }
 
-with open("${METADATA_JSON}", "w", encoding="utf-8") as handle:
+with open(metadata_path, "w", encoding="utf-8") as handle:
     json.dump(metadata, handle, ensure_ascii=True, indent=2)
 PY
 
