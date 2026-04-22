@@ -14,12 +14,14 @@ typedef enum {
 typedef enum {
     BENCH_OK = 0,
     BENCH_ERR_INVALID_ARG = -1,
-    BENCH_ERR_NOT_IMPLEMENTED = -2
+    BENCH_ERR_NO_MEMORY = -2,
+    BENCH_ERR_RUNTIME = -3
 } BenchStatus;
 
 typedef struct {
     const char *host;
     int port;
+    /* bench client 내부 동시 요청 worker 수다. */
     int workers;
     int requests;
     BenchScenario scenario;
