@@ -2,14 +2,16 @@
 #define HTTP_SERVER_H
 
 #include "api_types.h"
+#include "job_queue.h"
 
 typedef enum {
     HTTP_SERVER_OK = 0,
     HTTP_SERVER_ERR_INVALID_ARG = -1,
-    HTTP_SERVER_ERR_NOT_IMPLEMENTED = -2
+    HTTP_SERVER_ERR_NOT_IMPLEMENTED = -2,
+    HTTP_SERVER_ERR_SYSTEM = -3
 } HttpServerStatus;
 
-int http_server_run(const ServerConfig *config);
+int http_server_run(const ServerConfig *config, JobQueue *queue);
 void http_server_request_stop(void);
 int http_server_stop_requested(void);
 
