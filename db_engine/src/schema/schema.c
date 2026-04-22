@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../include/engine_runtime.h"
 #include "../../include/interface.h"
 
 static int is_integer_string(const char *s) {
@@ -97,8 +98,33 @@ static ColType column_type(const TableSchema *schema, const char *col_name) {
     return schema->columns[idx].type;
 }
 
+static int split_schema_fields(char *value, char **fields, int max_fields) {
+    char *cursor;
+    int count = 0;
+
+    if (!value || !fields || max_fields <= 0) return 0;
+
+    cursor = value;
+    while (*cursor != '\0' && count < max_fields) {
+        char *field_start = cursor;
+
+        while (*cursor != '\0' && *cursor != ',') {
+            cursor++;
+        }
+
+        if (*cursor == ',') {
+            *cursor = '\0';
+            cursor++;
+        }
+
+        fields[count++] = trim_whitespace(field_start);
+    }
+
+    return count;
+}
+
 TableSchema *schema_load(const char *table_name) {
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp = NULL;
     TableSchema *schema = NULL;
     char line[512];
@@ -106,7 +132,9 @@ TableSchema *schema_load(const char *table_name) {
 
     if (!table_name) return NULL;
 
-    snprintf(path, sizeof(path), "schema/%s.schema", table_name);
+    if (!engine_runtime_build_schema_path(table_name, path, sizeof(path))) {
+        return NULL;
+    }
 
     fp = fopen(path, "r");
     if (!fp) {
@@ -157,18 +185,15 @@ TableSchema *schema_load(const char *table_name) {
         {
             int idx = atoi(line + 3);
             char *value = eq + 1;
-            char *token;
             char *fields[16] = {0};
             int field_count = 0;
             int i;
 
             if (idx < 0 || idx >= col_count) continue;
 
-            token = strtok(value, ",");
-            while (token && field_count < (int)(sizeof(fields) / sizeof(fields[0]))) {
-                fields[field_count++] = trim_whitespace(token);
-                token = strtok(NULL, ",");
-            }
+            field_count = split_schema_fields(value,
+                                              fields,
+                                              (int)(sizeof(fields) / sizeof(fields[0])));
 
             if (field_count < 3) continue;
 

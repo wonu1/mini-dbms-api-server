@@ -8,6 +8,7 @@ SRCS = src/main.c            \
        src/parser/parser.c   \
        src/schema/schema.c   \
        src/executor/executor.c \
+       src/runtime/engine_runtime.c \
        src/bptree/bptree.c   \
        src/index/index_manager.c
 
@@ -42,7 +43,8 @@ test_bptree: tests/test_bptree.c \
 test_index: tests/test_index.c   \
             src/bptree/bptree.c  \
             src/index/index_manager.c \
-            src/schema/schema.c
+            src/schema/schema.c \
+            src/runtime/engine_runtime.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 test_parser: tests/test_parser.c  \
@@ -52,12 +54,16 @@ test_parser: tests/test_parser.c  \
 	$(CC) $(CFLAGS) -o $@ $^
 
 test_schema: tests/test_schema.c \
-             src/schema/schema.c
+             src/schema/schema.c \
+             src/runtime/engine_runtime.c \
+             src/bptree/bptree.c \
+             src/index/index_manager.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 test_executor: tests/test_executor.c  \
                src/schema/schema.c    \
                src/executor/executor.c \
+               src/runtime/engine_runtime.c \
                src/bptree/bptree.c    \
                src/index/index_manager.c
 	$(CC) $(CFLAGS) -o $@ $^

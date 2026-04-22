@@ -15,6 +15,9 @@
 
 #define AUTO_TABLE "runtime_auto_users"
 #define PLAIN_TABLE "runtime_plain_users"
+#define FIXTURE_ROOT_DIR "db_engine/runtime_fixtures"
+#define FIXTURE_SCHEMA_DIR FIXTURE_ROOT_DIR "/schema"
+#define FIXTURE_DATA_DIR FIXTURE_ROOT_DIR "/data"
 
 static int g_failures = 0;
 
@@ -26,11 +29,11 @@ static void expect_true(int condition, const char *message) {
 }
 
 static void build_schema_path(char *buffer, size_t size, const char *table_name) {
-    snprintf(buffer, size, "db_engine/schema/%s.schema", table_name);
+    snprintf(buffer, size, FIXTURE_SCHEMA_DIR "/%s.schema", table_name);
 }
 
 static void build_data_path(char *buffer, size_t size, const char *table_name) {
-    snprintf(buffer, size, "db_engine/data/%s.dat", table_name);
+    snprintf(buffer, size, FIXTURE_DATA_DIR "/%s.dat", table_name);
 }
 
 static void remove_if_exists(const char *path) {
@@ -53,8 +56,9 @@ static void reset_fixtures(void) {
     char auto_data[256];
     char plain_data[256];
 
-    MKDIR("db_engine/data");
-    MKDIR("db_engine/schema");
+    MKDIR(FIXTURE_ROOT_DIR);
+    MKDIR(FIXTURE_SCHEMA_DIR);
+    MKDIR(FIXTURE_DATA_DIR);
 
     build_schema_path(auto_schema, sizeof(auto_schema), AUTO_TABLE);
     build_schema_path(plain_schema, sizeof(plain_schema), PLAIN_TABLE);
@@ -107,6 +111,7 @@ static void free_error(char **message) {
 static void test_runtime_state(void) {
     const EngineRuntimeState *state;
 
+    reset_fixtures();
     expect_true(engine_runtime_init() == ENGINE_RUNTIME_OK,
                 "engine_runtime_init should succeed");
     state = engine_runtime_get_state();
@@ -114,14 +119,22 @@ static void test_runtime_state(void) {
                 "runtime should report initialized after init");
     expect_true(strcmp(state->schema_dir, "db_engine/schema") == 0,
                 "default schema dir should be stored");
-    expect_true(engine_runtime_set_schema_dir("db_engine/schema") == ENGINE_RUNTIME_OK,
+    expect_true(state->lock_ready == 1,
+                "runtime should prepare lock state during init");
+    expect_true(engine_runtime_set_schema_dir(FIXTURE_SCHEMA_DIR) == ENGINE_RUNTIME_OK,
                 "setting schema dir should succeed");
-    expect_true(engine_runtime_prepare_all() == ENGINE_RUNTIME_ERR_NOT_IMPLEMENTED,
-                "prepare_all remains out of scope");
+    expect_true(engine_runtime_prepare_all() == ENGINE_RUNTIME_OK,
+                "prepare_all should preload fixture indexes");
+    state = engine_runtime_get_state();
+    expect_true(state->prepared == 1,
+                "prepare_all should mark runtime as prepared");
+    expect_true(strcmp(state->schema_dir, FIXTURE_SCHEMA_DIR) == 0,
+                "runtime should store overridden fixture schema dir");
     engine_runtime_shutdown();
     state = engine_runtime_get_state();
     expect_true(state->initialized == 0,
                 "runtime shutdown should reset initialized state");
+    cleanup_fixtures();
 }
 
 static void test_auto_insert_and_select(void) {
@@ -132,6 +145,8 @@ static void test_auto_insert_and_select(void) {
     reset_fixtures();
     expect_true(engine_runtime_init() == ENGINE_RUNTIME_OK,
                 "runtime init should succeed for auto fixture");
+    expect_true(engine_runtime_set_schema_dir(FIXTURE_SCHEMA_DIR) == ENGINE_RUNTIME_OK,
+                "fixture schema dir should be applied before auto insert");
 
     expect_true(engine_execute_sql(
                     "INSERT INTO " AUTO_TABLE " (name, age, email) "
@@ -149,6 +164,8 @@ static void test_auto_insert_and_select(void) {
                 "auto insert should expose generated id");
     expect_true(response.insert.generated_id == 1,
                 "first generated id should be 1");
+    expect_true(engine_runtime_get_state()->prepared == 1,
+                "first execute should lazily prepare runtime state");
     engine_response_free(&response);
 
     expect_true(engine_execute_sql(
@@ -200,6 +217,8 @@ static void test_plain_insert_without_generated_id(void) {
     reset_fixtures();
     expect_true(engine_runtime_init() == ENGINE_RUNTIME_OK,
                 "runtime init should succeed for plain fixture");
+    expect_true(engine_runtime_set_schema_dir(FIXTURE_SCHEMA_DIR) == ENGINE_RUNTIME_OK,
+                "fixture schema dir should be applied before plain insert");
     expect_true(engine_execute_sql(
                     "INSERT INTO " PLAIN_TABLE " VALUES (10, 'plain-user');",
                     &response,
@@ -221,6 +240,12 @@ static void test_parse_failures(void) {
     EngineResponse response = {0};
     EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
     char *error_message = NULL;
+
+    reset_fixtures();
+    expect_true(engine_runtime_init() == ENGINE_RUNTIME_OK,
+                "runtime init should succeed for parse fixture");
+    expect_true(engine_runtime_set_schema_dir(FIXTURE_SCHEMA_DIR) == ENGINE_RUNTIME_OK,
+                "fixture schema dir should be applied before parse checks");
 
     expect_true(engine_execute_sql("   ", &response, &error_code, &error_message) ==
                     ENGINE_API_ERR,
@@ -248,6 +273,9 @@ static void test_parse_failures(void) {
     expect_true(error_code == ENGINE_ERR_PARSE,
                 "invalid SQL should map to parse error");
     free_error(&error_message);
+
+    engine_runtime_shutdown();
+    cleanup_fixtures();
 }
 
 static void test_validation_failures(void) {
@@ -258,6 +286,8 @@ static void test_validation_failures(void) {
     reset_fixtures();
     expect_true(engine_runtime_init() == ENGINE_RUNTIME_OK,
                 "runtime init should succeed for validation fixture");
+    expect_true(engine_runtime_set_schema_dir(FIXTURE_SCHEMA_DIR) == ENGINE_RUNTIME_OK,
+                "fixture schema dir should be applied before validation checks");
 
     expect_true(engine_execute_sql(
                     "SELECT * FROM missing_table;",

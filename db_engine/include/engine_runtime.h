@@ -1,7 +1,10 @@
 #ifndef ENGINE_RUNTIME_H
 #define ENGINE_RUNTIME_H
 
+#include <stddef.h>
+
 #define ENGINE_RUNTIME_SCHEMA_DIR_MAX 256
+#define ENGINE_RUNTIME_PATH_MAX 512
 
 typedef enum {
     ENGINE_RUNTIME_OK = 0,
@@ -22,5 +25,15 @@ typedef struct {
 const EngineRuntimeState *engine_runtime_get_state(void);
 int engine_runtime_set_schema_dir(const char *schema_dir);
 const char *engine_runtime_default_schema_dir(void);
+int engine_runtime_build_schema_path(const char *table_name,
+                                     char *buffer,
+                                     size_t buffer_size);
+int engine_runtime_build_data_path(const char *table_name,
+                                   char *buffer,
+                                   size_t buffer_size);
+int engine_runtime_lock_shared(void);
+int engine_runtime_lock_exclusive(void);
+void engine_runtime_unlock_shared(void);
+void engine_runtime_unlock_exclusive(void);
 
 #endif /* ENGINE_RUNTIME_H */

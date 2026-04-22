@@ -3,19 +3,12 @@
 
 #include "../../include/engine_api.h"
 #include "../../include/interface.h"
-#include "../../include/index_manager.h"
 
-#ifdef _WIN32
-#  include <direct.h>
-#  define ENGINE_GETCWD _getcwd
-#  define ENGINE_CHDIR _chdir
-#else
-#  include <unistd.h>
-#  define ENGINE_GETCWD getcwd
-#  define ENGINE_CHDIR chdir
-#endif
-
-#define ENGINE_CWD_MAX 4096
+typedef enum {
+    ENGINE_LOCK_NONE = 0,
+    ENGINE_LOCK_SHARED,
+    ENGINE_LOCK_EXCLUSIVE
+} EngineLockMode;
 
 static char *dup_string(const char *src) {
     size_t len;
@@ -89,48 +82,6 @@ static int copy_select_response(const ResultSet *source, EngineResponse *out) {
     return ENGINE_API_OK;
 }
 
-static int derive_workdir(char *buffer, size_t buffer_size) {
-    const EngineRuntimeState *state = engine_runtime_get_state();
-    const char *schema_dir = state->schema_dir[0]
-        ? state->schema_dir
-        : engine_runtime_default_schema_dir();
-    size_t len;
-    size_t index;
-    int separator_index = -1;
-
-    if (!buffer || buffer_size == 0) return 0;
-
-    len = strlen(schema_dir);
-    if (len == 0 || len >= buffer_size) return 0;
-
-    memcpy(buffer, schema_dir, len + 1);
-
-    while (len > 0 &&
-           (buffer[len - 1] == '/' || buffer[len - 1] == '\\')) {
-        buffer[--len] = '\0';
-    }
-
-    for (index = 0; index < len; index++) {
-        if (buffer[index] == '/' || buffer[index] == '\\') {
-            separator_index = (int)index;
-        }
-    }
-
-    if (separator_index < 0) {
-        buffer[0] = '.';
-        buffer[1] = '\0';
-        return 1;
-    }
-
-    if (separator_index == 0) {
-        buffer[1] = '\0';
-        return 1;
-    }
-
-    buffer[separator_index] = '\0';
-    return 1;
-}
-
 static TokenList *build_single_statement_tokens(const TokenList *all_tokens) {
     TokenList *statement_tokens;
     int end = 0;
@@ -182,6 +133,18 @@ static TokenList *build_single_statement_tokens(const TokenList *all_tokens) {
     return statement_tokens;
 }
 
+static void release_engine_lock(EngineLockMode *lock_mode) {
+    if (!lock_mode) return;
+
+    if (*lock_mode == ENGINE_LOCK_SHARED) {
+        engine_runtime_unlock_shared();
+    } else if (*lock_mode == ENGINE_LOCK_EXCLUSIVE) {
+        engine_runtime_unlock_exclusive();
+    }
+
+    *lock_mode = ENGINE_LOCK_NONE;
+}
+
 const char *engine_error_code_name(EngineErrorCode code) {
     switch (code) {
         case ENGINE_ERR_PARSE:
@@ -202,14 +165,13 @@ int engine_execute_sql(const char *sql,
                        EngineResponse *out,
                        EngineErrorCode *err_code,
                        char **err_message) {
+    const EngineRuntimeState *state = engine_runtime_get_state();
     TokenList *tokens = NULL;
     TokenList *statement_tokens = NULL;
     ASTNode *node = NULL;
     TableSchema *schema = NULL;
     ResultSet *result = NULL;
-    char workdir[ENGINE_CWD_MAX];
-    char original_cwd[ENGINE_CWD_MAX];
-    int entered_workdir = 0;
+    EngineLockMode lock_mode = ENGINE_LOCK_NONE;
     int generated_id = 0;
     int status = ENGINE_API_ERR;
     const char *table_name;
@@ -220,7 +182,15 @@ int engine_execute_sql(const char *sql,
 
     memset(out, 0, sizeof(*out));
     out->type = ENGINE_RESULT_ERROR;
+    *err_code = ENGINE_ERR_RUNTIME;
     *err_message = NULL;
+
+    if (!state->initialized) {
+        set_error(err_code, err_message,
+                  ENGINE_ERR_RUNTIME,
+                  "engine runtime is not initialized");
+        goto cleanup;
+    }
 
     tokens = lexer_tokenize(sql);
     if (!tokens) {
@@ -260,27 +230,12 @@ int engine_execute_sql(const char *sql,
             goto cleanup;
     }
 
-    if (!derive_workdir(workdir, sizeof(workdir))) {
+    if (!state->prepared && engine_runtime_prepare_all() != ENGINE_RUNTIME_OK) {
         set_error(err_code, err_message,
                   ENGINE_ERR_RUNTIME,
-                  "failed to derive engine working directory");
+                  "failed to prepare engine runtime");
         goto cleanup;
     }
-
-    if (!ENGINE_GETCWD(original_cwd, sizeof(original_cwd))) {
-        set_error(err_code, err_message,
-                  ENGINE_ERR_RUNTIME,
-                  "failed to capture current working directory");
-        goto cleanup;
-    }
-
-    if (ENGINE_CHDIR(workdir) != 0) {
-        set_error(err_code, err_message,
-                  ENGINE_ERR_RUNTIME,
-                  "failed to enter engine working directory");
-        goto cleanup;
-    }
-    entered_workdir = 1;
 
     schema = schema_load(table_name);
     if (!schema) {
@@ -297,14 +252,15 @@ int engine_execute_sql(const char *sql,
         goto cleanup;
     }
 
-    if (index_init(table_name, IDX_ORDER_DEFAULT, IDX_ORDER_DEFAULT) != 0) {
-        set_error(err_code, err_message,
-                  ENGINE_ERR_RUNTIME,
-                  "failed to initialize engine indexes");
-        goto cleanup;
-    }
-
     if (node->type == STMT_SELECT) {
+        if (engine_runtime_lock_shared() != ENGINE_RUNTIME_OK) {
+            set_error(err_code, err_message,
+                      ENGINE_ERR_RUNTIME,
+                      "failed to acquire engine read lock");
+            goto cleanup;
+        }
+        lock_mode = ENGINE_LOCK_SHARED;
+
         result = db_select(&node->select, schema);
         if (!result) {
             set_error(err_code, err_message,
@@ -313,6 +269,8 @@ int engine_execute_sql(const char *sql,
             goto cleanup;
         }
 
+        release_engine_lock(&lock_mode);
+
         if (copy_select_response(result, out) != ENGINE_API_OK) {
             set_error(err_code, err_message,
                       ENGINE_ERR_RUNTIME,
@@ -320,6 +278,14 @@ int engine_execute_sql(const char *sql,
             goto cleanup;
         }
     } else {
+        if (engine_runtime_lock_exclusive() != ENGINE_RUNTIME_OK) {
+            set_error(err_code, err_message,
+                      ENGINE_ERR_RUNTIME,
+                      "failed to acquire engine write lock");
+            goto cleanup;
+        }
+        lock_mode = ENGINE_LOCK_EXCLUSIVE;
+
         if (db_insert_with_generated_id(&node->insert, schema, &generated_id) != SQL_OK) {
             set_error(err_code, err_message,
                       ENGINE_ERR_RUNTIME,
@@ -331,25 +297,14 @@ int engine_execute_sql(const char *sql,
         out->insert.affected_rows = 1;
         out->insert.has_generated_id = generated_id > 0 ? 1 : 0;
         out->insert.generated_id = generated_id;
+
+        release_engine_lock(&lock_mode);
     }
 
     status = ENGINE_API_OK;
 
 cleanup:
-    if (entered_workdir && ENGINE_CHDIR(original_cwd) != 0) {
-        if (status == ENGINE_API_OK) {
-            engine_response_free(out);
-        }
-        if (*err_message == NULL) {
-            set_error(err_code, err_message,
-                      ENGINE_ERR_RUNTIME,
-                      "failed to restore original working directory");
-        } else {
-            *err_code = ENGINE_ERR_RUNTIME;
-        }
-        status = ENGINE_API_ERR;
-    }
-
+    release_engine_lock(&lock_mode);
     result_free(result);
     schema_free(schema);
     parser_free(node);

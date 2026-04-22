@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,7 @@
 #  define MKDIR(p) mkdir(p, 0755)
 #endif
 
+#include "../../include/engine_runtime.h"
 #include "../../include/index_manager.h"
 #include "../../include/interface.h"
 
@@ -63,36 +65,95 @@ static void free_row_values(char **values, int count) {
     free(values);
 }
 
+static int ensure_data_directory(const char *data_path) {
+    char dir_path[ENGINE_RUNTIME_PATH_MAX];
+    char *last_separator;
+
+    if (!data_path) return 0;
+    if (strlen(data_path) >= sizeof(dir_path)) return 0;
+
+    memcpy(dir_path, data_path, strlen(data_path) + 1);
+    last_separator = strrchr(dir_path, '/');
+    if (!last_separator) {
+        last_separator = strrchr(dir_path, '\\');
+    }
+
+    if (!last_separator) {
+        errno = 0;
+        if (MKDIR("data") == 0 || errno == EEXIST) {
+            return 1;
+        }
+        return 0;
+    }
+
+    *last_separator = '\0';
+    if (dir_path[0] == '\0') return 1;
+
+    errno = 0;
+    if (MKDIR(dir_path) == 0 || errno == EEXIST) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int read_next_column_value(const char **cursor,
+                                  char *buf,
+                                  size_t buf_size) {
+    const char *start;
+    const char *delimiter;
+    const char *end;
+    size_t len;
+
+    if (!cursor || !*cursor || !buf || buf_size == 0) return 0;
+
+    start = *cursor;
+    if (*start == '\0') return 0;
+
+    while (*start == ' ') start++;
+
+    delimiter = start;
+    while (*delimiter != '\0' &&
+           *delimiter != '|' &&
+           *delimiter != '\n' &&
+           *delimiter != '\r') {
+        delimiter++;
+    }
+
+    end = delimiter;
+    while (end > start && end[-1] == ' ') {
+        end--;
+    }
+
+    len = (size_t)(end - start);
+    if (len >= buf_size) len = buf_size - 1;
+
+    memcpy(buf, start, len);
+    buf[len] = '\0';
+
+    *cursor = delimiter;
+    if (**cursor == '|') {
+        (*cursor)++;
+    }
+
+    return 1;
+}
+
 static int line_column_value(const char *line,
                              int col_idx,
                              char *buf,
                              size_t buf_size) {
-    char tmp[1024];
-    char *tok;
+    const char *cursor = line;
     int i;
-    char *end;
-    size_t len;
 
     if (!line || !buf || buf_size == 0 || col_idx < 0) return 0;
 
-    strncpy(tmp, line, sizeof(tmp) - 1);
-    tmp[sizeof(tmp) - 1] = '\0';
-
-    tok = strtok(tmp, "|");
-    for (i = 0; i < col_idx && tok; i++) {
-        tok = strtok(NULL, "|");
+    for (i = 0; i <= col_idx; i++) {
+        if (!read_next_column_value(&cursor, buf, buf_size)) {
+            return 0;
+        }
     }
-    if (!tok) return 0;
 
-    while (*tok == ' ') tok++;
-    end = tok + strlen(tok);
-    while (end > tok && end[-1] == ' ') end--;
-
-    len = (size_t)(end - tok);
-    if (len >= buf_size) len = buf_size - 1;
-
-    memcpy(buf, tok, len);
-    buf[len] = '\0';
     return 1;
 }
 
@@ -146,30 +207,26 @@ static int line_matches_filter(const char *line,
 
 static Row parse_line_to_row(const char *line, const TableSchema *schema) {
     Row row = {0};
-    char buf[1024];
-    char *tok;
+    const char *cursor = line;
+    char value[1024];
     int i;
 
     row.count = schema->column_count;
     row.values = (char **)calloc((size_t)row.count, sizeof(char *));
     if (!row.values) return row;
-
-    strncpy(buf, line, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-
-    tok = strtok(buf, "|");
     for (i = 0; i < row.count; i++) {
-        char *end;
-
-        if (tok) {
-            while (*tok == ' ') tok++;
-            end = tok + strlen(tok);
-            while (end > tok && end[-1] == ' ') end--;
-            *end = '\0';
+        if (read_next_column_value(&cursor, value, sizeof(value))) {
+            row.values[i] = dup_string(value);
+        } else {
+            row.values[i] = dup_string("");
         }
 
-        row.values[i] = dup_string(tok ? tok : "");
-        tok = strtok(NULL, "|");
+        if (!row.values[i]) {
+            free_row_values(row.values, i);
+            row.values = NULL;
+            row.count = 0;
+            return row;
+        }
     }
 
     return row;
@@ -299,7 +356,7 @@ static ResultSet *build_resultset(Row *rows,
 static ResultSet *fetch_by_offset(long offset,
                                   const SelectStmt *stmt,
                                   const TableSchema *schema) {
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp;
     char line[1024];
     int len;
@@ -307,7 +364,9 @@ static ResultSet *fetch_by_offset(long offset,
 
     if (offset < 0) return make_empty_rs(schema);
 
-    snprintf(path, sizeof(path), "data/%s.dat", stmt->table);
+    if (!engine_runtime_build_data_path(stmt->table, path, sizeof(path))) {
+        return NULL;
+    }
 
     fp = fopen(path, "rb");
     if (!fp) return make_empty_rs(schema);
@@ -341,7 +400,7 @@ static ResultSet *fetch_by_offsets(const long *offsets,
                                    int count,
                                    const SelectStmt *stmt,
                                    const TableSchema *schema) {
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp;
     Row *rows;
     int actual = 0;
@@ -349,7 +408,9 @@ static ResultSet *fetch_by_offsets(const long *offsets,
 
     if (count <= 0 || !offsets) return make_empty_rs(schema);
 
-    snprintf(path, sizeof(path), "data/%s.dat", stmt->table);
+    if (!engine_runtime_build_data_path(stmt->table, path, sizeof(path))) {
+        return NULL;
+    }
 
     fp = fopen(path, "rb");
     if (!fp) return make_empty_rs(schema);
@@ -382,12 +443,14 @@ static ResultSet *fetch_by_offsets(const long *offsets,
 }
 
 static ResultSet *linear_scan(const SelectStmt *stmt, const TableSchema *schema) {
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp;
     Row *rows = NULL;
     int row_count;
 
-    snprintf(path, sizeof(path), "data/%s.dat", stmt->table);
+    if (!engine_runtime_build_data_path(stmt->table, path, sizeof(path))) {
+        return NULL;
+    }
 
     fp = fopen(path, "rb");
     if (!fp) return make_empty_rs(schema);
@@ -551,7 +614,7 @@ static int insert_impl(const InsertStmt *stmt,
                        const TableSchema *schema,
                        int *out_generated_id) {
     char **row_values = NULL;
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp;
     long offset;
     int id_col;
@@ -565,8 +628,15 @@ static int insert_impl(const InsertStmt *stmt,
         return SQL_ERR;
     }
 
-    MKDIR("data");
-    snprintf(path, sizeof(path), "data/%s.dat", stmt->table);
+    if (!engine_runtime_build_data_path(stmt->table, path, sizeof(path))) {
+        free_row_values(row_values, schema->column_count);
+        return SQL_ERR;
+    }
+
+    if (!ensure_data_directory(path)) {
+        free_row_values(row_values, schema->column_count);
+        return SQL_ERR;
+    }
 
     fp = fopen(path, "ab");
     if (!fp) {

@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../../include/bptree.h"
+#include "../../include/engine_runtime.h"
 #include "../../include/index_manager.h"
 #include "../../include/interface.h"
 
@@ -61,7 +62,7 @@ int index_init(const char *table, int order_id, int order_age) {
     TableIndex *ti;
     int oid;
     int oage;
-    char path[256];
+    char path[ENGINE_RUNTIME_PATH_MAX];
     FILE *fp;
     char line[1024];
     char col_buf[64];
@@ -87,7 +88,10 @@ int index_init(const char *table, int order_id, int order_age) {
         return -1;
     }
 
-    snprintf(path, sizeof(path), "data/%s.dat", table);
+    if (!engine_runtime_build_data_path(table, path, sizeof(path))) {
+        clear_entry(ti);
+        return -1;
+    }
 
     fp = fopen(path, "rb");
     if (!fp) {
