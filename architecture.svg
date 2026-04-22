@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 700" font-family="'Segoe UI', -apple-system, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 750" font-family="'Segoe UI', -apple-system, Arial, sans-serif">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0a0e1a"/>
@@ -20,16 +20,26 @@
       <stop offset="0%" style="stop-color:#10b981"/>
       <stop offset="100%" style="stop-color:#059669"/>
     </linearGradient>
+    <linearGradient id="gRose" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f43f5e"/>
+      <stop offset="100%" style="stop-color:#e11d48"/>
+    </linearGradient>
     <filter id="shadow">
       <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.35"/>
     </filter>
     <marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
       <path d="M0,0 L10,3.5 L0,7" fill="#475569"/>
     </marker>
+    <marker id="arrBlue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <path d="M0,0 L10,3.5 L0,7" fill="#60a5fa"/>
+    </marker>
+    <marker id="arrPurple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <path d="M0,0 L10,3.5 L0,7" fill="#a78bfa"/>
+    </marker>
   </defs>
 
   <!-- Background -->
-  <rect width="800" height="700" fill="url(#bg)" rx="12"/>
+  <rect width="800" height="750" fill="url(#bg)" rx="12"/>
 
   <!-- ═══ CLIENT ═══ -->
   <rect x="240" y="30" width="320" height="70" rx="16" fill="#1e1b00" fill-opacity="0.6" stroke="#f59e0b" stroke-width="1.5" filter="shadow"/>
@@ -38,99 +48,109 @@
   <text x="310" y="57" fill="#fbbf24" font-size="20" font-weight="700">Client</text>
   <text x="310" y="78" fill="#a08a4a" font-size="14">curl POST /query · JSON body</text>
 
-  <!-- Arrow -->
+  <!-- Arrow: Client → Server -->
   <line x1="400" y1="100" x2="400" y2="140" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
   <rect x="353" y="108" width="94" height="22" rx="11" fill="#0f1729" stroke="#334155" stroke-width="1"/>
   <text x="400" y="123" text-anchor="middle" fill="#64748b" font-size="12" font-weight="600">TCP socket</text>
 
   <!-- ═══ API SERVER ═══ -->
-  <rect x="40" y="145" width="720" height="195" rx="16" fill="#0c1631" fill-opacity="0.5" stroke="#3b82f6" stroke-width="1" stroke-opacity="0.4"/>
+  <rect x="40" y="145" width="720" height="120" rx="16" fill="#0c1631" fill-opacity="0.5" stroke="#3b82f6" stroke-width="1" stroke-opacity="0.4"/>
   <rect x="55" y="157" width="130" height="28" rx="14" fill="#1e3a5f"/>
   <text x="120" y="176" text-anchor="middle" fill="#60a5fa" font-size="14" font-weight="700">API Server</text>
 
   <!-- 3 cards -->
-  <rect x="60" y="198" width="220" height="60" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
-  <circle cx="86" cy="228" r="14" fill="url(#gBlue)"/>
-  <text x="86" y="233" text-anchor="middle" fill="#fff" font-size="12">🔌</text>
-  <text x="110" y="222" fill="#93c5fd" font-size="16" font-weight="700">Socket</text>
-  <text x="110" y="242" fill="#64748b" font-size="13">accept → 연결 수신</text>
+  <rect x="60" y="198" width="220" height="52" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
+  <circle cx="86" cy="224" r="14" fill="url(#gBlue)"/>
+  <text x="86" y="229" text-anchor="middle" fill="#fff" font-size="12">🔌</text>
+  <text x="110" y="218" fill="#93c5fd" font-size="16" font-weight="700">Socket</text>
+  <text x="110" y="238" fill="#64748b" font-size="13">accept → 연결 수신</text>
 
-  <rect x="290" y="198" width="220" height="60" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
-  <circle cx="316" cy="228" r="14" fill="url(#gBlue)"/>
-  <text x="316" y="233" text-anchor="middle" fill="#fff" font-size="12">📮</text>
-  <text x="340" y="222" fill="#93c5fd" font-size="16" font-weight="700">Job Queue</text>
-  <text x="340" y="242" fill="#64748b" font-size="13">원형 버퍼 · FIFO</text>
+  <rect x="290" y="198" width="220" height="52" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
+  <circle cx="316" cy="224" r="14" fill="url(#gBlue)"/>
+  <text x="316" y="229" text-anchor="middle" fill="#fff" font-size="12">📮</text>
+  <text x="340" y="218" fill="#93c5fd" font-size="16" font-weight="700">Job Queue</text>
+  <text x="340" y="238" fill="#64748b" font-size="13">원형 버퍼 · FIFO</text>
 
-  <rect x="520" y="198" width="220" height="60" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
-  <circle cx="546" cy="228" r="14" fill="url(#gBlue)"/>
-  <text x="546" y="233" text-anchor="middle" fill="#fff" font-size="12">👷</text>
-  <text x="570" y="222" fill="#93c5fd" font-size="16" font-weight="700">Thread Pool</text>
-  <text x="570" y="242" fill="#64748b" font-size="13">워커 N개 · 병렬 처리</text>
+  <rect x="520" y="198" width="220" height="52" rx="12" fill="#111b33" stroke="#1e3a5f" stroke-width="1" filter="shadow"/>
+  <circle cx="546" cy="224" r="14" fill="url(#gBlue)"/>
+  <text x="546" y="229" text-anchor="middle" fill="#fff" font-size="12">👷</text>
+  <text x="570" y="218" fill="#93c5fd" font-size="16" font-weight="700">Thread Pool</text>
+  <text x="570" y="238" fill="#64748b" font-size="13">워커 N개 · 병렬 처리</text>
 
   <!-- Arrows between cards -->
-  <line x1="280" y1="228" x2="290" y2="228" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="510" y1="228" x2="520" y2="228" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="280" y1="224" x2="290" y2="224" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arrBlue)"/>
+  <line x1="510" y1="224" x2="520" y2="224" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arrBlue)"/>
 
-  <!-- Lock card -->
-  <rect x="220" y="272" width="360" height="52" rx="12" fill="#1a0a0a" stroke="#ef4444" stroke-width="1" stroke-opacity="0.6" filter="shadow"/>
-  <text x="400" y="295" text-anchor="middle" fill="#fca5a5" font-size="16" font-weight="700">🔒 Atomic Read/Write Lock</text>
-  <text x="400" y="314" text-anchor="middle" fill="#64748b" font-size="13">SELECT = shared · INSERT = exclusive</text>
+  <!-- Arrow: Server → engine_execute_sql -->
+  <line x1="400" y1="265" x2="400" y2="300" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
 
-  <!-- Arrow -->
-  <line x1="400" y1="340" x2="400" y2="380" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
-  <rect x="325" y="348" width="150" height="22" rx="11" fill="#0f1729" stroke="#334155" stroke-width="1"/>
-  <text x="400" y="363" text-anchor="middle" fill="#64748b" font-size="12" font-weight="600">engine_execute_sql()</text>
+  <!-- ═══ engine_execute_sql() — Lock + Engine 묶음 ═══ -->
+  <rect x="40" y="305" width="720" height="265" rx="16" fill="#1a0b2e" fill-opacity="0.25" stroke="#8b5cf6" stroke-width="1" stroke-opacity="0.4"/>
 
-  <!-- ═══ DB ENGINE ═══ -->
-  <rect x="40" y="385" width="720" height="115" rx="16" fill="#1a0b2e" fill-opacity="0.4" stroke="#8b5cf6" stroke-width="1" stroke-opacity="0.4"/>
-  <rect x="55" y="397" width="120" height="28" rx="14" fill="#2d1b69"/>
-  <text x="115" y="416" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="700">DB Engine</text>
+  <!-- engine_execute_sql label -->
+  <rect x="55" y="317" width="210" height="28" rx="14" fill="#2d1b69"/>
+  <text x="160" y="336" text-anchor="middle" fill="#a78bfa" font-size="14" font-weight="700">engine_execute_sql()</text>
+
+  <!-- Lock card — inside engine_execute_sql -->
+  <rect x="250" y="352" width="300" height="52" rx="12" fill="#1a0a0a" stroke="#ef4444" stroke-width="1" stroke-opacity="0.6" filter="shadow"/>
+  <circle cx="280" cy="378" r="14" fill="url(#gRose)"/>
+  <text x="280" y="383" text-anchor="middle" fill="#fff" font-size="12">🔒</text>
+  <text x="306" y="372" fill="#fca5a5" font-size="16" font-weight="700">Atomic Read/Write Lock</text>
+  <text x="306" y="392" fill="#64748b" font-size="13">SELECT = shared · INSERT = exclusive</text>
+
+  <!-- Arrow: Lock → Pipeline -->
+  <line x1="400" y1="404" x2="400" y2="430" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
+
+  <!-- DB Engine label -->
+  <rect x="55" y="420" width="110" height="24" rx="12" fill="#2d1b69"/>
+  <text x="110" y="437" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="700">DB Engine</text>
 
   <!-- 4 pipeline stages -->
-  <rect x="60" y="436" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
-  <text x="137" y="456" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">🔪 Lexer</text>
-  <text x="137" y="474" text-anchor="middle" fill="#64748b" font-size="12">SQL → 토큰</text>
+  <rect x="60" y="452" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
+  <text x="137" y="472" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">🔪 Lexer</text>
+  <text x="137" y="490" text-anchor="middle" fill="#64748b" font-size="12">SQL → 토큰</text>
 
-  <rect x="230" y="436" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
-  <text x="307" y="456" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">🌳 Parser</text>
-  <text x="307" y="474" text-anchor="middle" fill="#64748b" font-size="12">토큰 → AST</text>
+  <rect x="230" y="452" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
+  <text x="307" y="472" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">🌳 Parser</text>
+  <text x="307" y="490" text-anchor="middle" fill="#64748b" font-size="12">토큰 → AST</text>
 
-  <rect x="400" y="436" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
-  <text x="477" y="456" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">✅ Schema</text>
-  <text x="477" y="474" text-anchor="middle" fill="#64748b" font-size="12">스키마 검증</text>
+  <rect x="400" y="452" width="155" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
+  <text x="477" y="472" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">✅ Schema</text>
+  <text x="477" y="490" text-anchor="middle" fill="#64748b" font-size="12">스키마 검증</text>
 
-  <rect x="570" y="436" width="175" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
-  <text x="657" y="456" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">⚙️ Executor</text>
-  <text x="657" y="474" text-anchor="middle" fill="#64748b" font-size="12">SELECT / INSERT</text>
+  <rect x="570" y="452" width="175" height="48" rx="10" fill="#1a1040" stroke="#2d1b69" stroke-width="1" filter="shadow"/>
+  <text x="657" y="472" text-anchor="middle" fill="#c4b5fd" font-size="16" font-weight="700">⚙️ Executor</text>
+  <text x="657" y="490" text-anchor="middle" fill="#64748b" font-size="12">SELECT / INSERT</text>
 
-  <!-- Arrows -->
-  <line x1="215" y1="460" x2="230" y2="460" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="385" y1="460" x2="400" y2="460" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="555" y1="460" x2="570" y2="460" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <!-- Arrows between pipeline -->
+  <line x1="215" y1="476" x2="230" y2="476" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
+  <line x1="385" y1="476" x2="400" y2="476" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
+  <line x1="555" y1="476" x2="570" y2="476" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrPurple)"/>
 
-  <!-- Arrow -->
-  <line x1="400" y1="500" x2="400" y2="540" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
-  <rect x="340" y="508" width="120" height="22" rx="11" fill="#0f1729" stroke="#334155" stroke-width="1"/>
-  <text x="400" y="523" text-anchor="middle" fill="#64748b" font-size="12" font-weight="600">fread / fwrite</text>
+  <!-- Unlock label -->
+  <rect x="520" y="510" width="120" height="22" rx="11" fill="#1a0a0a" stroke="#ef4444" stroke-width="0.8" stroke-opacity="0.4"/>
+  <text x="580" y="525" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="600">🔓 Lock 해제</text>
+
+  <!-- Arrow: Engine → Storage -->
+  <line x1="400" y1="570" x2="400" y2="605" stroke="#475569" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+  <rect x="340" y="577" width="120" height="22" rx="11" fill="#0f1729" stroke="#334155" stroke-width="1"/>
+  <text x="400" y="592" text-anchor="middle" fill="#64748b" font-size="12" font-weight="600">fread / fwrite</text>
 
   <!-- ═══ STORAGE ═══ -->
-  <rect x="40" y="545" width="720" height="110" rx="16" fill="#0b1f1a" fill-opacity="0.4" stroke="#10b981" stroke-width="1" stroke-opacity="0.4"/>
-  <rect x="55" y="557" width="100" height="28" rx="14" fill="#0d3b2e"/>
-  <text x="105" y="576" text-anchor="middle" fill="#34d399" font-size="14" font-weight="700">Storage</text>
+  <rect x="40" y="610" width="720" height="100" rx="16" fill="#0b1f1a" fill-opacity="0.4" stroke="#10b981" stroke-width="1" stroke-opacity="0.4"/>
+  <rect x="55" y="622" width="100" height="28" rx="14" fill="#0d3b2e"/>
+  <text x="105" y="641" text-anchor="middle" fill="#34d399" font-size="14" font-weight="700">Storage</text>
 
   <!-- 3 storage cards -->
-  <rect x="60" y="596" width="220" height="44" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
-  <text x="170" y="615" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">📁 users.dat</text>
-  <text x="170" y="633" text-anchor="middle" fill="#64748b" font-size="12">파이프 구분 텍스트 파일</text>
+  <rect x="60" y="660" width="220" height="38" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
+  <text x="170" y="684" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">📁 users.dat</text>
 
-  <rect x="290" y="596" width="220" height="44" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
-  <text x="400" y="615" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">🌲 B+ Tree (id)</text>
-  <text x="400" y="633" text-anchor="middle" fill="#64748b" font-size="12">PK 인덱스 · O(log n)</text>
+  <rect x="290" y="660" width="220" height="38" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
+  <text x="400" y="684" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">📋 users.schema</text>
 
-  <rect x="520" y="596" width="220" height="44" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
-  <text x="630" y="615" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">🌲 B+ Tree (age)</text>
-  <text x="630" y="633" text-anchor="middle" fill="#64748b" font-size="12">BETWEEN 범위 검색</text>
+  <rect x="520" y="660" width="220" height="38" rx="10" fill="#0d2820" stroke="#0d3b2e" stroke-width="1" filter="shadow"/>
+  <text x="630" y="684" text-anchor="middle" fill="#6ee7b7" font-size="16" font-weight="700">🌲 B+ Tree (id)</text>
 
   <!-- Footer -->
-  <text x="400" y="680" text-anchor="middle" fill="#2a3348" font-size="12" font-weight="600">Mini DBMS API Server · 크래프톤 정글 SW-AI 12기 · C99 · No External Libraries</text>
+  <text x="400" y="738" text-anchor="middle" fill="#2a3348" font-size="12" font-weight="600">Mini DBMS API Server · 크래프톤 정글 SW-AI 12기 · C99 · No External Libraries</text>
 </svg>
