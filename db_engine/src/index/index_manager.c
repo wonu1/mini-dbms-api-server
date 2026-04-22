@@ -7,6 +7,11 @@
 #include "../../include/index_manager.h"
 #include "../../include/interface.h"
 
+/*
+ * 이 파일은 table별 id/age B+Tree 인덱스를 관리한다.
+ * data 파일을 스캔해 초기 인덱스를 만들고, INSERT 때 새 row offset을 인덱스에 추가한다.
+ */
+
 typedef struct {
     char    table[64];
     BPTree *tree_id;

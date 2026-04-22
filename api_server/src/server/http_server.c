@@ -26,16 +26,25 @@
 #define HTTP_ACCEPT_TIMEOUT_US 500000
 #define HTTP_CLIENT_RECV_TIMEOUT_SEC 5
 
+/*
+ * 이 파일은 실제 TCP socket 기반 HTTP 서버 구현이다.
+ * 클라이언트 연결을 받고, HTTP 요청의 시작줄/헤더/body를 읽은 뒤,
+ * /health는 바로 응답하고 /query는 QueryJob으로 만들어 worker queue에 넣는다.
+ */
+
 static volatile sig_atomic_t g_stop_requested = 0;
 
+/* 서버 종료 요청 플래그를 켠다. SIGINT/SIGTERM 처리나 테스트에서 호출한다. */
 void http_server_request_stop(void) {
     g_stop_requested = 1;
 }
 
+/* 서버가 종료 요청을 받았는지 확인한다. accept loop가 이 값을 보고 빠져나간다. */
 int http_server_stop_requested(void) {
     return g_stop_requested != 0;
 }
 
+/* send()가 일부만 보낼 수 있으므로, 지정한 길이만큼 끝까지 반복해서 전송한다. */
 static int write_all(int fd, const char *data, size_t len) {
     size_t sent = 0;
     while (sent < len) {
@@ -49,6 +58,7 @@ static int write_all(int fd, const char *data, size_t len) {
     return 0;
 }
 
+/* HTTP 상태 코드 숫자를 응답 첫 줄에 들어갈 짧은 문구로 바꾼다. */
 static const char *reason_phrase(int status_code) {
     switch (status_code) {
         case 200: return "OK";
@@ -64,6 +74,7 @@ static const char *reason_phrase(int status_code) {
     }
 }
 
+/* HttpResponse 구조체를 실제 HTTP 응답 헤더와 body로 만들어 client socket에 쓴다. */
 static int send_http_response(int fd, const HttpResponse *response) {
     char header[512];
     size_t body_len = response->body ? strlen(response->body) : 0;
@@ -84,6 +95,7 @@ static int send_http_response(int fd, const HttpResponse *response) {
     return 0;
 }
 
+/* JSON 응답 생성이 실패했을 때도 최소한의 text/plain 에러 응답을 보낸다. */
 static int send_minimal_error(int fd, int status_code, const char *body) {
     char buf[256];
     size_t body_len = body ? strlen(body) : 0;
@@ -99,6 +111,7 @@ static int send_minimal_error(int fd, int status_code, const char *body) {
     return write_all(fd, buf, (size_t)n);
 }
 
+/* 에러 코드와 메시지로 JSON 에러 응답을 만들고 client에게 보낸다. */
 static void send_error(int fd, int status_code, const char *error_code, const char *message) {
     HttpResponse response;
     http_response_init(&response);
@@ -110,6 +123,7 @@ static void send_error(int fd, int status_code, const char *error_code, const ch
     http_response_free(&response);
 }
 
+/* HTTP header 블록에서 원하는 header 이름의 값을 찾아 out에 복사한다. */
 static int extract_header(const char *headers, size_t len,
                           const char *name, char *out, size_t out_size) {
     size_t name_len = strlen(name);
@@ -143,6 +157,7 @@ static int extract_header(const char *headers, size_t len,
     return -1;
 }
 
+/* client socket에서 HTTP 요청을 읽고, header 끝 위치까지 찾아낸다. */
 static int read_request(int fd, char *buf, size_t cap, size_t *out_total, size_t *out_header_end) {
     size_t total = 0;
     while (total < cap - 1) {
@@ -166,6 +181,7 @@ static int read_request(int fd, char *buf, size_t cap, size_t *out_total, size_t
     return -1;
 }
 
+/* Content-Length만큼 body가 아직 덜 읽혔다면 나머지 body를 추가로 읽는다. */
 static int ensure_body(int fd, char *buf, size_t cap, size_t header_end,
                       size_t content_length, size_t *out_total) {
     size_t total = *out_total;
@@ -185,6 +201,7 @@ static int ensure_body(int fd, char *buf, size_t cap, size_t header_end,
     return 0;
 }
 
+/* GET /health 요청을 처리한다. DB 작업 없이 바로 {"status":"ok"}를 보낸다. */
 static void handle_get_health(int fd) {
     HttpResponse response;
     http_response_init(&response);
@@ -196,6 +213,7 @@ static void handle_get_health(int fd) {
     http_response_free(&response);
 }
 
+/* POST /query 요청의 header/body를 검증하고 QueryJob으로 만들어 worker queue에 넣는다. */
 static void handle_post_query(int fd, JobQueue *queue,
                               char *buf, size_t cap, size_t total, size_t header_end) {
     char content_type[128] = {0};
@@ -256,6 +274,7 @@ static void handle_post_query(int fd, JobQueue *queue,
     close(fd);
 }
 
+/* 연결 하나를 읽어서 route별 처리 함수로 나눈다. 지원 route는 GET /health, POST /query다. */
 static void handle_connection(int fd, JobQueue *queue) {
     char buf[HTTP_READ_BUFFER];
     size_t total = 0;
@@ -300,6 +319,7 @@ static void handle_connection(int fd, JobQueue *queue) {
     close(fd);
 }
 
+/* listen socket을 만들고 port에 bind/listen까지 완료한 fd를 반환한다. */
 static int create_listen_socket(int port) {
     int fd;
     int one = 1;
@@ -329,6 +349,7 @@ static int create_listen_socket(int port) {
     return fd;
 }
 
+/* HTTP 서버의 메인 루프다. listen socket을 열고, 연결을 accept해서 handle_connection에 넘긴다. */
 int http_server_run(const ServerConfig *config, JobQueue *queue) {
     int listen_fd;
 

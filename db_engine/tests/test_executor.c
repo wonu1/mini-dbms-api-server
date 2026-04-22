@@ -13,6 +13,11 @@
 #include "../include/index_manager.h"
 #include "../include/interface.h"
 
+/*
+ * executor 테스트다.
+ * 검증이 끝난 SELECT/INSERT AST가 실제 data 파일과 index를 올바르게 갱신하는지 확인한다.
+ */
+
 #define TEST_TABLE "executor_test_users"
 
 static int g_failures = 0;

@@ -6,6 +6,12 @@
 #include "../include/http_request.h"
 #include "../include/job_queue.h"
 
+/*
+ * JobQueue 단위 테스트다.
+ * queue 초기화, push/pop, deep copy, close 동작, blocking pop을 확인한다.
+ * 실제 HTTP 서버 없이 queue 함수만 직접 호출해서 검증한다.
+ */
+
 typedef struct {
     JobQueue *queue;
     int status;

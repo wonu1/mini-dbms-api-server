@@ -6,12 +6,28 @@
 
 #include "api_types.h"
 
+/*
+ * JobQueue는 HTTP 요청을 worker thread에게 넘겨주는 대기열이다.
+ * HTTP server는 QueryJob을 push하고, worker는 pop해서 처리한다.
+ * 여러 thread가 동시에 접근하므로 mutex/condition variable로 보호한다.
+ */
 typedef struct {
+    /* QueryJob을 저장하는 동적 배열이다. */
     QueryJob *items;
+
+    /* queue가 최대로 담을 수 있는 job 수다. */
     size_t capacity;
+
+    /* 다음에 pop할 위치다. 원형 queue의 앞쪽 포인터 역할을 한다. */
     size_t head;
+
+    /* 다음에 push할 위치다. 원형 queue의 뒤쪽 포인터 역할을 한다. */
     size_t tail;
+
+    /* 현재 queue 안에 들어 있는 job 수다. */
     size_t count;
+
+    /* queue가 닫혔는지 나타낸다. 닫히면 새 job을 받지 않는다. */
     int closed;
     /* 동기화 초기화 성공 여부를 기록해 destroy 경로를 단순하게 만든다. */
     int sync_ready;
@@ -24,22 +40,47 @@ typedef struct {
 } JobQueue;
 
 typedef enum {
+    /* queue 작업 성공 */
     JOB_QUEUE_OK = 0,
+
+    /* NULL 포인터나 capacity 0 같은 잘못된 인자 */
     JOB_QUEUE_ERR_INVALID_ARG = -1,
+
+    /* 동적 메모리나 동기화 객체 초기화 실패 */
     JOB_QUEUE_ERR_NO_MEMORY = -2,
+
+    /* queue가 가득 차서 push할 수 없음 */
     JOB_QUEUE_ERR_FULL = 1,
+
+    /* queue가 비어 있어서 pop할 수 없음 */
     JOB_QUEUE_ERR_EMPTY = 2,
+
+    /* queue가 닫혀서 더 진행할 수 없음 */
     JOB_QUEUE_ERR_CLOSED = 3,
+
+    /* 예전 스텁 단계의 값이다. */
     JOB_QUEUE_ERR_NOT_IMPLEMENTED = 4
 } JobQueueStatus;
 
+/* queue 저장 공간과 동기화 객체를 초기화한다. */
 int job_queue_init(JobQueue *queue, size_t capacity);
+
+/* queue에 job을 하나 넣는다. */
 int job_queue_push(JobQueue *queue, const QueryJob *job);
+
 /* pop 성공 시 out_job의 소유권은 호출자에게 넘어가며 query_job_free()로 정리한다. */
 int job_queue_pop(JobQueue *queue, QueryJob *out_job);
+
+/* queue를 닫고 대기 중인 thread들을 깨운다. */
 void job_queue_close(JobQueue *queue);
+
+/* queue의 동적 메모리와 동기화 객체를 정리한다. */
 void job_queue_destroy(JobQueue *queue);
+
+/* 현재 queue에 들어 있는 job 개수를 반환한다. */
 size_t job_queue_size(const JobQueue *queue);
+
+/* queue가 닫혔는지 확인한다. */
 int job_queue_is_closed(const JobQueue *queue);
 
 #endif /* JOB_QUEUE_H */

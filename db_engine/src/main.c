@@ -5,6 +5,12 @@
 #include "../include/interface.h"
 #include "../include/index_manager.h"
 
+/*
+ * DB 엔진 CLI 실행 파일의 진입점이다.
+ * SQL 파일을 읽고, 세미콜론 기준으로 문장을 나눈 뒤,
+ * 각 문장을 lexer -> parser -> schema validation -> executor 순서로 실행한다.
+ */
+
 /* SELECT 결과를 콘솔에서 읽기 쉽게 표 형태로 출력한다. */
 static void print_pretty_table(ResultSet *rs) {
     if (!rs || rs->row_count == 0) {

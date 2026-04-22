@@ -4,6 +4,12 @@
 
 #include "../include/interface.h"
 
+/*
+ * schema validation 테스트다.
+ * schema 파일 기준으로 SELECT/INSERT가 컬럼 타입, 필수 컬럼,
+ * AUTO_INCREMENT 규칙을 지키는지 확인한다.
+ */
+
 static int failures = 0;
 static int tests_run = 0;
 

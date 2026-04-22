@@ -13,6 +13,11 @@
 
 #include "bench_client.h"
 
+/*
+ * 이 파일은 API 서버에 많은 HTTP 요청을 보내 성능을 확인하는 벤치 클라이언트다.
+ * 서버 worker 수를 바꿔가며 SELECT/INSERT 요청 처리량을 비교할 때 사용한다.
+ */
+
 typedef struct {
     const BenchConfig *config;
     int worker_id;
@@ -24,6 +29,7 @@ typedef struct {
 } BenchWorkerArgs;
 
 /* CLI 숫자 옵션은 모두 양의 정수만 허용한다. */
+/* CLI 문자열 옵션을 양의 정수로 바꾼다. 예: "100" -> 100 */
 static int parse_positive_int(const char *text, int *out_value) {
     char *end = NULL;
     long value;
@@ -41,6 +47,7 @@ static int parse_positive_int(const char *text, int *out_value) {
 }
 
 /* 사람이 읽는 문자열 시나리오를 enum으로 바꾼다. */
+/* "select" 또는 "insert" 문자열을 BenchScenario enum으로 바꾼다. */
 static int parse_scenario(const char *text, BenchScenario *out_scenario) {
     if (!text || !out_scenario) return BENCH_ERR_INVALID_ARG;
 
@@ -58,6 +65,7 @@ static int parse_scenario(const char *text, BenchScenario *out_scenario) {
 }
 
 /* req/sec 계산을 위해 단조 증가 시계를 사용한다. */
+/* 벤치 시작/종료 시각을 초 단위 double 값으로 구한다. */
 static double bench_now_seconds(void) {
     struct timespec ts;
 
@@ -66,6 +74,7 @@ static double bench_now_seconds(void) {
 }
 
 /* 각 요청은 새 TCP 연결을 열고 서버에 한 번 전송하는 단순 모델이다. */
+/* host:port로 TCP 연결을 열고 연결된 socket fd를 반환한다. */
 static int connect_to_server(const char *host, int port) {
     char port_text[16];
     struct addrinfo hints;
@@ -99,6 +108,7 @@ static int connect_to_server(const char *host, int port) {
 }
 
 /* 부분 전송을 허용하지 않고 끝까지 보낼 때까지 반복한다. */
+/* socket에 buffer 내용을 length 바이트만큼 끝까지 보낸다. */
 static int send_all(int fd, const char *buffer, size_t length) {
     size_t sent = 0;
 
@@ -112,6 +122,7 @@ static int send_all(int fd, const char *buffer, size_t length) {
 }
 
 /* 발표용 시나리오를 위해 select/insert SQL을 고정 포맷으로 만든다. */
+/* 벤치 시나리오에 맞는 SELECT 또는 INSERT SQL 문자열을 만든다. */
 static int build_sql(char *sql_buffer,
                      size_t sql_capacity,
                      BenchScenario scenario,
@@ -143,6 +154,7 @@ static int build_sql(char *sql_buffer,
 }
 
 /* /query HTTP 요청 하나를 만들고 결과 status code만 간단히 확인한다. */
+/* HTTP /query 요청 하나를 만들고 서버에 보낸 뒤 2xx 응답인지 확인한다. */
 static int perform_request(const BenchConfig *config,
                            BenchScenario scenario,
                            int worker_id,
@@ -207,6 +219,7 @@ static int perform_request(const BenchConfig *config,
 }
 
 /* bench worker 하나가 맡은 요청 수만큼 반복해서 서버를 두드린다. */
+/* bench worker thread의 main 함수다. 할당받은 request_count만큼 요청을 반복한다. */
 static void *bench_worker_main(void *arg) {
     BenchWorkerArgs *worker = (BenchWorkerArgs *)arg;
     int offset;
@@ -229,6 +242,7 @@ static void *bench_worker_main(void *arg) {
     return NULL;
 }
 
+/* BenchConfig에 기본 host/port/workers/requests/scenario 값을 채운다. */
 void bench_config_set_defaults(BenchConfig *config) {
     if (!config) return;
 
@@ -239,6 +253,7 @@ void bench_config_set_defaults(BenchConfig *config) {
     config->scenario = BENCH_SCENARIO_SELECT;
 }
 
+/* BenchScenario enum을 출력용 문자열로 바꾼다. */
 const char *bench_scenario_name(BenchScenario scenario) {
     switch (scenario) {
         case BENCH_SCENARIO_SELECT:
@@ -250,6 +265,7 @@ const char *bench_scenario_name(BenchScenario scenario) {
     }
 }
 
+/* 명령행 옵션을 BenchConfig에 반영한다. */
 int bench_config_parse_args(int argc, char **argv, BenchConfig *out_config) {
     int i;
 
@@ -287,6 +303,7 @@ int bench_config_parse_args(int argc, char **argv, BenchConfig *out_config) {
     return BENCH_OK;
 }
 
+/* 여러 bench worker를 띄우고 전체 성공/실패 수와 처리량을 출력한다. */
 int bench_run(const BenchConfig *config) {
     BenchWorkerArgs *workers = NULL;
     pthread_t *threads = NULL;

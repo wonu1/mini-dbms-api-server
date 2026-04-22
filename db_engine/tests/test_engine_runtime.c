@@ -13,6 +13,12 @@
 #  define MKDIR(path) mkdir(path, 0755)
 #endif
 
+/*
+ * engine runtime bridge 테스트다.
+ * API 서버가 호출하는 engine_runtime_init/prepare/execute/shutdown 흐름과
+ * SELECT/INSERT 결과 변환, 에러 매핑을 fixture schema/data로 검증한다.
+ */
+
 #define AUTO_TABLE "runtime_auto_users"
 #define PLAIN_TABLE "runtime_plain_users"
 #define FIXTURE_ROOT_DIR "db_engine/runtime_fixtures"
@@ -21,6 +27,7 @@
 
 static int g_failures = 0;
 
+/* 조건이 거짓이면 실패 개수를 증가시키고 메시지를 출력한다. */
 static void expect_true(int condition, const char *message) {
     if (!condition) {
         fprintf(stderr, "[FAIL] %s\n", message);
@@ -28,19 +35,23 @@ static void expect_true(int condition, const char *message) {
     }
 }
 
+/* fixture schema 파일 경로를 만든다. */
 static void build_schema_path(char *buffer, size_t size, const char *table_name) {
     snprintf(buffer, size, FIXTURE_SCHEMA_DIR "/%s.schema", table_name);
 }
 
+/* fixture data 파일 경로를 만든다. */
 static void build_data_path(char *buffer, size_t size, const char *table_name) {
     snprintf(buffer, size, FIXTURE_DATA_DIR "/%s.dat", table_name);
 }
 
+/* 파일이 있으면 지우고, 없어도 테스트가 계속 진행되게 한다. */
 static void remove_if_exists(const char *path) {
     if (!path) return;
     remove(path);
 }
 
+/* 테스트용 schema/data 파일 내용을 디스크에 쓴다. */
 static int write_file(const char *path, const char *contents) {
     FILE *file = fopen(path, "wb");
     if (!file) return 0;
@@ -50,6 +61,7 @@ static int write_file(const char *path, const char *contents) {
     return 1;
 }
 
+/* 각 테스트가 깨끗한 상태에서 시작하도록 fixture 디렉터리와 schema를 다시 만든다. */
 static void reset_fixtures(void) {
     char auto_schema[256];
     char plain_schema[256];
@@ -85,6 +97,7 @@ static void reset_fixtures(void) {
                "col1=name,VARCHAR,64\n");
 }
 
+/* 테스트가 만든 fixture schema/data 파일과 index 상태를 정리한다. */
 static void cleanup_fixtures(void) {
     char auto_schema[256];
     char plain_schema[256];
@@ -103,11 +116,13 @@ static void cleanup_fixtures(void) {
     remove_if_exists(plain_data);
 }
 
+/* engine_execute_sql이 실패하며 만든 error_message를 정리한다. */
 static void free_error(char **message) {
     free(*message);
     *message = NULL;
 }
 
+/* runtime init, schema dir 설정, prepare_all, shutdown 상태 전이를 검증한다. */
 static void test_runtime_state(void) {
     const EngineRuntimeState *state;
 
@@ -137,6 +152,7 @@ static void test_runtime_state(void) {
     cleanup_fixtures();
 }
 
+/* AUTO_INCREMENT table에서 INSERT generated_id와 이후 SELECT 결과 변환을 검증한다. */
 static void test_auto_insert_and_select(void) {
     EngineResponse response = {0};
     EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
@@ -209,6 +225,7 @@ static void test_auto_insert_and_select(void) {
     cleanup_fixtures();
 }
 
+/* AUTO_INCREMENT가 없는 table에서는 generated_id가 없다고 응답하는지 검증한다. */
 static void test_plain_insert_without_generated_id(void) {
     EngineResponse response = {0};
     EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
@@ -236,6 +253,7 @@ static void test_plain_insert_without_generated_id(void) {
     cleanup_fixtures();
 }
 
+/* 빈 SQL, 다중 SQL, 문법 오류가 ENGINE_ERR_PARSE로 매핑되는지 검증한다. */
 static void test_parse_failures(void) {
     EngineResponse response = {0};
     EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
@@ -278,6 +296,7 @@ static void test_parse_failures(void) {
     cleanup_fixtures();
 }
 
+/* 없는 table/column, 잘못된 INSERT 형태가 ENGINE_ERR_VALIDATION으로 매핑되는지 검증한다. */
 static void test_validation_failures(void) {
     EngineResponse response = {0};
     EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
@@ -323,6 +342,7 @@ static void test_validation_failures(void) {
     cleanup_fixtures();
 }
 
+/* D runtime bridge 테스트들을 순서대로 실행하고 실패 개수로 종료 코드를 결정한다. */
 int main(void) {
     test_runtime_state();
     test_auto_insert_and_select();

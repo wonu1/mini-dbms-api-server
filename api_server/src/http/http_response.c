@@ -9,15 +9,30 @@
  * 이 파일은 서버 내부 결과(EngineResponse)를 HTTP JSON 응답으로 바꾼다.
  * 문자열을 이어 붙일 때마다 malloc 크기를 직접 계산하면 실수하기 쉬우므로,
  * JsonBuffer라는 작은 동적 버퍼를 만들어서 안전하게 붙인다.
+ *
+ * 큰 흐름:
+ *   1. JsonBuffer에 JSON 문자열을 차례대로 붙인다.
+ *   2. 문자열 값은 반드시 json_append_escaped()로 감싼다.
+ *   3. 완성된 JSON body를 HttpResponse.body로 넘긴다.
+ *   4. 호출자는 나중에 http_response_free()로 body를 정리한다.
  */
 
 typedef struct {
+    /* 실제 JSON 문자열이 저장되는 메모리 주소다. */
     char *data;
+
+    /* 현재까지 data에 채운 글자 수다. 마지막 '\0'은 제외한다. */
     size_t len;
+
+    /* 현재 malloc/realloc으로 확보해 둔 전체 공간 크기다. */
     size_t cap;
 } JsonBuffer;
 
 static int json_buffer_init(JsonBuffer *buf) {
+    /*
+     * 처음부터 너무 작은 메모리를 잡으면 append할 때마다 realloc이 자주 일어난다.
+     * 128바이트는 작은 JSON 응답을 담기 적당한 시작 크기다.
+     */
     buf->cap = 128;
     buf->len = 0;
     buf->data = (char *)malloc(buf->cap);
@@ -27,6 +42,10 @@ static int json_buffer_init(JsonBuffer *buf) {
 }
 
 static void json_buffer_free(JsonBuffer *buf) {
+    /*
+     * JsonBuffer가 아직 HttpResponse에게 넘겨지지 않은 상태라면 여기서 정리한다.
+     * free 후에는 포인터와 길이를 초기화해서 실수로 다시 쓰는 일을 줄인다.
+     */
     if (!buf) return;
     free(buf->data);
     buf->data = NULL;
@@ -59,6 +78,14 @@ static int json_buffer_reserve(JsonBuffer *buf, size_t extra) {
 static int json_append_raw(JsonBuffer *buf, const char *text) {
     size_t len = strlen(text);
 
+    /*
+     * raw append는 이미 JSON 문법 조각인 문자열을 그대로 붙인다.
+     * 예: "{\"status\":\"ok\"}" 또는 ",\"data\":"
+     *
+     * 사용자가 보낸 값에는 raw append를 쓰면 안 된다.
+     * 사용자 문자열은 quote/backslash 때문에 JSON이 깨질 수 있으므로
+     * json_append_escaped()를 써야 한다.
+     */
     if (!json_buffer_reserve(buf, len)) return 0;
     memcpy(buf->data + buf->len, text, len + 1);
     buf->len += len;
@@ -126,6 +153,10 @@ static int json_append_escaped(JsonBuffer *buf, const char *text) {
                 break;
             default:
                 if (ch < 0x20) {
+                    /*
+                     * 눈에 보이지 않는 제어문자는 JSON에 그대로 넣을 수 없다.
+                     * \u0001 같은 안전한 escape 형태로 바꾼다.
+                     */
                     snprintf(encoded, sizeof(encoded), "\\u%04x", ch);
                     if (!json_append_raw(buf, encoded)) return 0;
                 } else {
@@ -141,6 +172,10 @@ static int json_append_escaped(JsonBuffer *buf, const char *text) {
 }
 
 static void set_content_type(HttpResponse *response) {
+    /*
+     * B 모듈에서 만드는 body는 모두 JSON이다.
+     * server 쪽은 이 content_type을 보고 HTTP header를 만들 수 있다.
+     */
     strncpy(response->content_type,
             "application/json",
             sizeof(response->content_type) - 1);
@@ -164,6 +199,10 @@ static int finish_response(HttpResponse *response,
 }
 
 void http_response_init(HttpResponse *response) {
+    /*
+     * 빈 응답 상태로 만든다.
+     * body가 NULL이면 아직 할당된 JSON 문자열이 없다는 뜻이다.
+     */
     if (!response) return;
 
     response->status_code = 0;
@@ -172,6 +211,10 @@ void http_response_init(HttpResponse *response) {
 }
 
 void http_response_free(HttpResponse *response) {
+    /*
+     * HttpResponse.body는 malloc된 문자열이다.
+     * 응답을 다 썼거나 새 응답으로 덮어쓰기 전에 반드시 정리한다.
+     */
     if (!response) return;
 
     free(response->body);
@@ -191,6 +234,10 @@ int http_build_health_response(HttpResponse *out_response) {
      */
     http_response_free(out_response);
 
+    /*
+     * health 응답은 서버가 살아 있는지 확인하는 가장 단순한 응답이다.
+     * DB 실행 결과가 필요 없으므로 status만 보낸다.
+     */
     if (!json_buffer_init(&buf)) return HTTP_RESPONSE_ERR_NO_MEMORY;
     if (!json_append_raw(&buf, "{\"status\":\"ok\"}")) {
         json_buffer_free(&buf);
@@ -225,6 +272,10 @@ int http_build_query_success_response(const EngineResponse *engine_response,
 
     if (!json_buffer_init(&buf)) return HTTP_RESPONSE_ERR_NO_MEMORY;
 
+    /*
+     * 모든 성공 응답은 status:"ok"로 시작한다.
+     * request_id는 요청에 있었을 때만 넣는다.
+     */
     if (!json_append_raw(&buf, "{\"status\":\"ok\"")) goto oom;
     if (request_id) {
         if (!json_append_raw(&buf, ",\"request_id\":")) goto oom;
@@ -242,6 +293,10 @@ int http_build_query_success_response(const EngineResponse *engine_response,
          */
         if (!json_append_raw(&buf, "{\"columns\":[")) goto oom;
         for (i = 0; i < select->column_count; i++) {
+            /*
+             * JSON 배열은 값 사이에 콤마가 필요하지만 첫 번째 값 앞에는 콤마가 없다.
+             * 그래서 i > 0일 때만 콤마를 붙인다.
+             */
             if (i > 0 && !json_append_raw(&buf, ",")) goto oom;
             if (!json_append_escaped(&buf, select->columns ? select->columns[i] : "")) {
                 goto oom;
@@ -250,6 +305,11 @@ int http_build_query_success_response(const EngineResponse *engine_response,
 
         if (!json_append_raw(&buf, "],\"rows\":[")) goto oom;
         for (r = 0; r < select->row_count; r++) {
+            /*
+             * rows는 행 배열의 배열이다.
+             * row_count가 2이고 column_count가 2라면 대략 이런 모양이다.
+             * [["1","kim"],["2","lee"]]
+             */
             if (r > 0 && !json_append_raw(&buf, ",")) goto oom;
             if (!json_append_raw(&buf, "[")) goto oom;
             for (c = 0; c < select->column_count; c++) {
@@ -291,6 +351,10 @@ int http_build_query_success_response(const EngineResponse *engine_response,
     return finish_response(out_response, 200, &buf);
 
 oom:
+    /*
+     * JSON을 만들다가 메모리가 부족해지면 중간 버퍼를 정리하고 실패를 알린다.
+     * 이 경우 out_response에는 성공 body를 넣지 않는다.
+     */
     json_buffer_free(&buf);
     return HTTP_RESPONSE_ERR_NO_MEMORY;
 }

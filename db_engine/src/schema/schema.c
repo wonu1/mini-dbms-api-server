@@ -6,6 +6,12 @@
 #include "../../include/engine_runtime.h"
 #include "../../include/interface.h"
 
+/*
+ * 이 파일은 table schema 파일을 읽고, AST가 schema 규칙에 맞는지 검사한다.
+ * 예를 들어 존재하지 않는 컬럼을 SELECT하거나, AUTO_INCREMENT 컬럼을 직접 INSERT하면
+ * 여기서 오류로 막는다.
+ */
+
 static int is_integer_string(const char *s) {
     int i = 0;
 

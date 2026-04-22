@@ -1,7 +1,11 @@
 FROM ubuntu:latest
 
+# 팀원들이 같은 Linux 개발 환경을 쓸 수 있게 만드는 devcontainer 이미지다.
+# C 빌드 도구, 디버거, 네트워크 확인 도구를 한 번에 설치한다.
+
 ENV TZ=Asia/Seoul LANG=ko_KR.UTF-8 LANGUAGE=ko_KR.UTF-8
 
+# 한국어 locale과 C 개발에 필요한 기본 패키지를 설치한다.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     locales tzdata build-essential sudo gdb vim curl git wget \
     python3 cmake make gcc sudo valgrind telnet net-tools iproute2\
@@ -12,5 +16,6 @@ RUN useradd -m -s /bin/bash jungle && usermod -aG sudo jungle
 # 개발용 계정 비밀번호 설정
 RUN echo 'jungle:jungle' | chpasswd
 
+# 컨테이너 접속 시 root가 아니라 jungle 사용자로 작업한다.
 USER jungle
 WORKDIR /home/jungle

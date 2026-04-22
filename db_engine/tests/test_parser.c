@@ -3,6 +3,12 @@
 #include <string.h>
 #include "../include/interface.h"
 
+/*
+ * lexer/parser 테스트다.
+ * SQL 문자열이 TokenList와 ASTNode로 올바르게 바뀌는지,
+ * 특히 WHERE BETWEEN 문법을 제대로 인식하는지 확인한다.
+ */
+
 static int failures = 0;
 static int tests_run = 0;
 

@@ -26,9 +26,16 @@
 #  define MKDIR(path) mkdir(path, 0755)
 #endif
 
+/*
+ * server_app 통합 성격의 테스트다.
+ * 설정 파싱/검증뿐 아니라 실제 HTTP server를 테스트 스레드에서 띄우고
+ * /health, /query 요청이 동작하는지 확인한다.
+ */
+
 #define TEST_QUERY_TABLE "server_app_query_users"
 #define TEST_SCHEMA_PATH "db_engine/schema/" TEST_QUERY_TABLE ".schema"
 #define TEST_DATA_PATH "db_engine/data/" TEST_QUERY_TABLE ".dat"
+#define TEST_LOOPBACK_ADDR 0x7f000001u
 
 typedef struct {
     ServerConfig config;
@@ -101,7 +108,7 @@ static int pick_free_port(void) {
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr = htonl(TEST_LOOPBACK_ADDR);
     addr.sin_port = 0;
 
     assert(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0);
@@ -130,7 +137,7 @@ static int perform_request(int port,
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)port);
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr = htonl(TEST_LOOPBACK_ADDR);
 
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         close(fd);

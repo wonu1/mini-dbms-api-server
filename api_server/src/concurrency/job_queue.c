@@ -4,7 +4,15 @@
 #include "../../include/job_queue.h"
 #include "../../include/http_request.h"
 
+/*
+ * 이 파일은 worker들이 사용할 작업 queue를 구현한다.
+ * HTTP server thread가 QueryJob을 넣고, worker thread들이 하나씩 꺼내 처리한다.
+ * 여러 thread가 동시에 접근하므로 mutex로 상태 변경을 보호하고,
+ * condition variable로 "일이 들어왔다"는 신호를 worker에게 보낸다.
+ */
+
 /* QueryJob 내부 문자열까지 안전하게 복사하기 위한 작은 유틸리티다. */
+/* 문자열 하나를 새 메모리에 복사한다. QueryJob deep copy에서 사용한다. */
 static char *job_queue_dup_string(const char *src) {
     size_t len;
     char *copy;
@@ -20,6 +28,7 @@ static char *job_queue_dup_string(const char *src) {
 }
 
 /* 큐는 job의 소유권을 가져야 하므로 얕은 복사가 아니라 깊은 복사를 사용한다. */
+/* src QueryJob의 fd/sql/request_id를 dst 슬롯으로 깊은 복사한다. */
 static int job_queue_copy_job(QueryJob *dst, const QueryJob *src) {
     char *sql_copy = NULL;
     char *request_id_copy = NULL;
@@ -46,6 +55,7 @@ static int job_queue_copy_job(QueryJob *dst, const QueryJob *src) {
     return JOB_QUEUE_OK;
 }
 
+/* JobQueue 저장 배열, 원형 queue 인덱스, mutex/condition variable을 초기화한다. */
 int job_queue_init(JobQueue *queue, size_t capacity) {
     size_t i;
 
@@ -92,6 +102,7 @@ int job_queue_init(JobQueue *queue, size_t capacity) {
     return JOB_QUEUE_OK;
 }
 
+/* producer가 새 QueryJob을 queue tail 위치에 넣는다. 꽉 차면 즉시 FULL을 반환한다. */
 int job_queue_push(JobQueue *queue, const QueryJob *job) {
     int status;
 
@@ -126,6 +137,7 @@ int job_queue_push(JobQueue *queue, const QueryJob *job) {
     return JOB_QUEUE_OK;
 }
 
+/* worker가 queue head 위치에서 QueryJob을 꺼낸다. 비어 있으면 작업이 올 때까지 기다린다. */
 int job_queue_pop(JobQueue *queue, QueryJob *out_job) {
     if (!queue || !out_job) return JOB_QUEUE_ERR_INVALID_ARG;
     if (!queue->sync_ready) return JOB_QUEUE_ERR_INVALID_ARG;
@@ -157,6 +169,7 @@ int job_queue_pop(JobQueue *queue, QueryJob *out_job) {
     return JOB_QUEUE_OK;
 }
 
+/* queue를 닫고, pop/push에서 기다릴 수 있는 thread들을 모두 깨운다. */
 void job_queue_close(JobQueue *queue) {
     if (!queue) return;
 
@@ -173,6 +186,7 @@ void job_queue_close(JobQueue *queue) {
     pthread_mutex_unlock(&queue->mutex);
 }
 
+/* queue에 남은 job과 동기화 객체, 저장 배열을 모두 정리한다. */
 void job_queue_destroy(JobQueue *queue) {
     size_t i;
     int sync_ready;
@@ -206,6 +220,7 @@ void job_queue_destroy(JobQueue *queue) {
     }
 }
 
+/* 현재 queue에 들어 있는 job 개수를 thread-safe하게 읽는다. */
 size_t job_queue_size(const JobQueue *queue) {
     size_t size = 0;
 
@@ -219,6 +234,7 @@ size_t job_queue_size(const JobQueue *queue) {
     return size;
 }
 
+/* queue가 닫혔는지 thread-safe하게 읽는다. */
 int job_queue_is_closed(const JobQueue *queue) {
     int closed = 0;
 

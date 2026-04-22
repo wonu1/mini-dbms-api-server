@@ -15,6 +15,12 @@
 #include "../../include/index_manager.h"
 #include "../../include/interface.h"
 
+/*
+ * 이 파일은 검증이 끝난 AST를 실제 data 파일 작업으로 실행한다.
+ * SELECT는 data 파일을 읽거나 index offset을 이용해 ResultSet을 만들고,
+ * INSERT는 새 row를 data 파일에 쓰고 id/age index를 갱신한다.
+ */
+
 static char *dup_string(const char *src) {
     char *copy;
     size_t len;

@@ -3,7 +3,13 @@
 
 #include "bench_client.h"
 
+/*
+ * bench_client 실행 파일의 진입점이다.
+ * 옵션을 파싱하고, 실제 벤치 로직은 bench_client.c의 bench_run()에 맡긴다.
+ */
+
 /* bench client는 옵션이 적어서 별도 문서 대신 usage 한 줄을 바로 보여준다. */
+/* bench client에서 사용할 수 있는 명령행 옵션을 출력한다. */
 static void bench_print_usage(const char *argv0) {
     const char *program = argv0 ? argv0 : "bench_client";
 
@@ -12,6 +18,7 @@ static void bench_print_usage(const char *argv0) {
             program);
 }
 
+/* bench_client 실행 진입점이다. 옵션 파싱 후 bench_run()을 호출한다. */
 int main(int argc, char **argv) {
     BenchConfig config;
     int status;

@@ -4,7 +4,14 @@
 #include "../../include/http_request.h"
 #include "../../include/thread_pool.h"
 
+/*
+ * 이 파일은 worker thread 여러 개를 만들고 멈추는 일을 담당한다.
+ * ThreadPool 자체는 SQL을 직접 실행하지 않는다.
+ * 대신 server-core가 등록한 handler 콜백에게 QueryJob 처리를 맡긴다.
+ */
+
 /* worker는 큐에서 job을 꺼내고, 연결된 handler로 실제 처리를 위임한다. */
+/* worker thread의 main 함수다. queue에서 job을 반복해서 꺼내 handler로 넘긴다. */
 static void *thread_pool_worker_main(void *arg) {
     ThreadPool *pool = (ThreadPool *)arg;
     QueryJob job;
@@ -22,6 +29,7 @@ static void *thread_pool_worker_main(void *arg) {
     return NULL;
 }
 
+/* ThreadPool 구조체를 초기화하고 worker thread 핸들 배열을 준비한다. */
 int thread_pool_init(ThreadPool *pool, JobQueue *queue, int thread_count) {
     if (!pool || !queue || thread_count <= 0) {
         return THREAD_POOL_ERR_INVALID_ARG;
@@ -43,6 +51,7 @@ int thread_pool_init(ThreadPool *pool, JobQueue *queue, int thread_count) {
     return THREAD_POOL_OK;
 }
 
+/* worker가 job을 꺼냈을 때 호출할 실제 처리 함수(handler)를 등록한다. */
 int thread_pool_set_handler(ThreadPool *pool,
                             ThreadPoolJobHandler handler,
                             void *context) {
@@ -56,6 +65,7 @@ int thread_pool_set_handler(ThreadPool *pool,
     return THREAD_POOL_OK;
 }
 
+/* 설정된 thread_count만큼 worker thread를 생성한다. */
 int thread_pool_start(ThreadPool *pool) {
     int i;
 
@@ -85,6 +95,7 @@ int thread_pool_start(ThreadPool *pool) {
     return THREAD_POOL_OK;
 }
 
+/* queue를 닫아 worker loop를 끝내고 모든 worker thread를 join한다. */
 int thread_pool_stop(ThreadPool *pool) {
     int i;
 
@@ -101,6 +112,7 @@ int thread_pool_stop(ThreadPool *pool) {
     return THREAD_POOL_OK;
 }
 
+/* thread pool이 가진 thread 배열과 상태를 정리한다. */
 void thread_pool_destroy(ThreadPool *pool) {
     if (!pool) return;
 
@@ -118,6 +130,7 @@ void thread_pool_destroy(ThreadPool *pool) {
     pool->handler_context = NULL;
 }
 
+/* thread pool이 현재 시작된 상태인지 반환한다. */
 int thread_pool_is_started(const ThreadPool *pool) {
     if (!pool) return 0;
     return pool->started;

@@ -3,6 +3,11 @@
 #include "../../include/interface.h"
 
 /*
+ * 이 파일은 SQL 파일 전체를 문자열로 읽어오는 역할만 한다.
+ * CLI 엔진은 파일에 적힌 SQL을 한 번에 읽은 뒤 lexer/parser 단계로 넘긴다.
+ */
+
+/*
  * input_read_file
  * Read a whole file and return null-terminated SQL text.
  * Caller must free() the returned string.

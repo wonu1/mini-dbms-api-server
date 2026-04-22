@@ -4,12 +4,19 @@
 #include "../../include/engine_api.h"
 #include "../../include/interface.h"
 
+/*
+ * 이 파일은 API 서버가 호출하는 "서버용 DB 엔진 입구"다.
+ * SQL 문자열 하나를 받아 lexer/parser/schema/executor를 순서대로 호출하고,
+ * 결과를 EngineResponse 형태로 복사해서 HTTP 계층이 JSON으로 바꾸기 쉽게 만든다.
+ */
+
 typedef enum {
     ENGINE_LOCK_NONE = 0,
     ENGINE_LOCK_SHARED,
     ENGINE_LOCK_EXCLUSIVE
 } EngineLockMode;
 
+/* 문자열을 새 메모리에 복사한다. 에러 메시지와 SELECT 결과 복사에 사용한다. */
 static char *dup_string(const char *src) {
     size_t len;
     char *copy;
@@ -24,6 +31,7 @@ static char *dup_string(const char *src) {
     return copy;
 }
 
+/* err_code와 err_message를 한 번에 채운다. err_message는 호출자가 free해야 한다. */
 static void set_error(EngineErrorCode *err_code,
                       char **err_message,
                       EngineErrorCode code,
@@ -32,10 +40,12 @@ static void set_error(EngineErrorCode *err_code,
     if (err_message) *err_message = dup_string(message);
 }
 
+/* SELECT 응답 복사 중 실패했을 때 이미 복사한 메모리를 정리한다. */
 static void free_copied_select(EngineResponse *out) {
     engine_response_free(out);
 }
 
+/* executor의 ResultSet을 서버 공개 타입인 EngineResponse.select로 깊은 복사한다. */
 static int copy_select_response(const ResultSet *source, EngineResponse *out) {
     int row_index;
     int col_index;
@@ -82,6 +92,7 @@ static int copy_select_response(const ResultSet *source, EngineResponse *out) {
     return ENGINE_API_OK;
 }
 
+/* 전체 토큰 목록에서 SQL 한 문장만 떼어 parser가 기대하는 EOF 포함 TokenList로 만든다. */
 static TokenList *build_single_statement_tokens(const TokenList *all_tokens) {
     TokenList *statement_tokens;
     int end = 0;
@@ -133,6 +144,7 @@ static TokenList *build_single_statement_tokens(const TokenList *all_tokens) {
     return statement_tokens;
 }
 
+/* 현재 잡고 있는 shared/exclusive lock을 lock_mode에 맞춰 해제한다. */
 static void release_engine_lock(EngineLockMode *lock_mode) {
     if (!lock_mode) return;
 
@@ -145,6 +157,7 @@ static void release_engine_lock(EngineLockMode *lock_mode) {
     *lock_mode = ENGINE_LOCK_NONE;
 }
 
+/* EngineErrorCode enum을 로그/디버깅용 문자열로 바꾼다. */
 const char *engine_error_code_name(EngineErrorCode code) {
     switch (code) {
         case ENGINE_ERR_PARSE:
@@ -161,6 +174,7 @@ const char *engine_error_code_name(EngineErrorCode code) {
     }
 }
 
+/* SQL 문자열 하나를 실행하고 SELECT/INSERT 결과 또는 엔진 에러를 반환한다. */
 int engine_execute_sql(const char *sql,
                        EngineResponse *out,
                        EngineErrorCode *err_code,
@@ -313,6 +327,7 @@ cleanup:
     return status;
 }
 
+/* EngineResponse가 소유한 SELECT columns/rows 메모리를 모두 해제한다. */
 void engine_response_free(EngineResponse *res) {
     int row_index;
     int col_index;

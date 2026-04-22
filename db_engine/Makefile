@@ -1,6 +1,9 @@
 CC     = gcc
 CFLAGS = -std=c99 -Wall -Wextra -Iinclude
 
+# db_engine 단독 CLI와 엔진 단위 테스트를 빌드하는 Makefile이다.
+# 루트 Makefile과 별개로, db_engine 디렉터리 안에서 기존 엔진만 검증할 때 사용한다.
+
 # 기본 실행 파일을 만드는 소스 목록
 SRCS = src/main.c            \
        src/input/input.c     \
@@ -14,6 +17,7 @@ SRCS = src/main.c            \
 
 TARGET = sqlp
 
+# 기본 target은 SQL 파일을 실행하는 CLI 바이너리(sqlp)를 만든다.
 all: $(TARGET)
 
 $(TARGET): $(SRCS)

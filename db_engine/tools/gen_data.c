@@ -4,6 +4,11 @@
 #define DEFAULT_COUNT 10000
 #define DEFAULT_TABLE "users"
 
+/*
+ * 벤치마크용 INSERT SQL 파일을 자동 생성하는 작은 도구다.
+ * 많은 row를 직접 손으로 쓰기 어렵기 때문에 count만큼 INSERT 문을 만들어 samples에 저장한다.
+ */
+
 int main(int argc, char *argv[]) {
     int count = DEFAULT_COUNT;
     const char *table = DEFAULT_TABLE;

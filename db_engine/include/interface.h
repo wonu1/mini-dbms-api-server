@@ -4,6 +4,12 @@
 /*
  * 엔진 모듈 사이에서 공통으로 쓰는 타입과 함수 선언을 모아 둔 헤더다.
  * 구현은 각 src 디렉터리에 있고, 여기에는 선언과 데이터 구조만 둔다.
+ *
+ * SQL 처리 흐름을 아주 간단히 쓰면:
+ *   SQL 문자열 -> lexer_tokenize() -> TokenList
+ *   TokenList -> parser_parse() -> ASTNode
+ *   ASTNode + TableSchema -> schema_validate()
+ *   검증된 ASTNode -> executor/db_select/db_insert
  */
 
 /* 공통 반환 코드 */
