@@ -50,4 +50,9 @@ B+ Tree 인덱스, 스레드 풀, Atomic Lock까지
 <br><br>
 <br><br>
 ## 쟁점
+<img width="1280" height="900" alt="Pasted image 20260423010715" src="https://github.com/user-attachments/assets/e87de53f-2229-41b9-93f2-c5277513287e" />
+<br><br>
+<br><br>
+<img width="1280" height="900" alt="Pasted image 20260423011927" src="https://github.com/user-attachments/assets/23d7b36c-04c3-4dec-974e-fec3a0f24c3e" />
+
 
