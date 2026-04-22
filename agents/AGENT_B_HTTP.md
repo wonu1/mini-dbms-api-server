@@ -5,6 +5,9 @@
 - Implement JSON parsing and JSON serialization.
 - Keep all HTTP payload rules inside the HTTP module.
 
+## Suggested Branch
+- `feature/B-http-contract`
+
 ## Owned Files
 - `api_server/include/api_types.h`
 - `api_server/include/http_request.h`

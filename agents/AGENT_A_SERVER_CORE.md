@@ -5,6 +5,9 @@
 - Handle runtime config, bootstrap order, and server lifecycle.
 - Use only public headers from other modules.
 
+## Suggested Branch
+- `feature/A-server-core`
+
 ## Owned Files
 - `Makefile`
 - `api_server/include/server_app.h`

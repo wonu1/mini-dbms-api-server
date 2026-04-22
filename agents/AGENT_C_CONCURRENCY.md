@@ -5,6 +5,9 @@
 - Own queue full, close, and stop behavior.
 - Own the C benchmark client used for worker-count comparison.
 
+## Suggested Branch
+- `feature/C-concurrency`
+
 ## Owned Files
 - `api_server/include/job_queue.h`
 - `api_server/include/thread_pool.h`

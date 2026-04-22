@@ -44,7 +44,7 @@ No one edits these paths in this round.
 ## Ownership
 
 ### Agent A - Server Core
-- Suggested branch: `feature/server-core`
+- Suggested branch: `feature/A-server-core`
 - Own files:
 - `Makefile`
 - `api_server/include/server_app.h`
@@ -57,7 +57,7 @@ No one edits these paths in this round.
 - `bench/scripts/smoke_insert.sh`
 
 ### Agent B - HTTP Contract
-- Suggested branch: `feature/http-contract`
+- Suggested branch: `feature/B-http-contract`
 - Own files:
 - `api_server/include/api_types.h`
 - `api_server/include/http_request.h`
@@ -68,7 +68,7 @@ No one edits these paths in this round.
 - `api_server/tests/test_http_response.c`
 
 ### Agent C - Concurrency And Bench Client
-- Suggested branch: `feature/concurrency`
+- Suggested branch: `feature/C-concurrency`
 - Own files:
 - `api_server/include/job_queue.h`
 - `api_server/include/thread_pool.h`
@@ -80,7 +80,7 @@ No one edits these paths in this round.
 - `bench/client/main.c`
 
 ### Agent D - Engine Runtime Bridge
-- Suggested branch: `feature/engine-runtime`
+- Suggested branch: `feature/D-engine-runtime`
 - Own files:
 - `db_engine/include/engine_types.h`
 - `db_engine/include/engine_api.h`
