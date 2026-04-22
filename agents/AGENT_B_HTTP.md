@@ -34,11 +34,11 @@
 
 ## What You Build
 - Enforce `Content-Type: application/json`
-- Parse `sql` and optional `request_id`
+- Parse `sql`
 - Ignore unknown JSON fields
 - Enforce one SQL statement per request
 - Build success and error JSON payloads
-- Echo `request_id` back in the response when present
+- Build query success/error JSON responses
 
 ## What You Must Not Touch
 - `api_server/src/server/*`

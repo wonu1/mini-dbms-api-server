@@ -298,10 +298,9 @@ static void test_run_guards(void) {
 static void test_query_end_to_end(void) {
     const char *valid_body =
         "{\"sql\":\"SELECT id, name FROM " TEST_QUERY_TABLE
-        " WHERE id BETWEEN 1 AND 2;\",\"request_id\":\"req-1\"}";
+        " WHERE id BETWEEN 1 AND 2;\"}";
     const char *invalid_body =
-        "{\"sql\":\"SELECT FROM " TEST_QUERY_TABLE
-        ";\",\"request_id\":\"req-2\"}";
+        "{\"sql\":\"SELECT FROM " TEST_QUERY_TABLE ";\"}";
     char request[1024];
     char response[8192];
     ServerThreadArgs thread_args;
@@ -333,7 +332,6 @@ static void test_query_end_to_end(void) {
                            response,
                            sizeof(response)) == 0);
     assert(strstr(response, "HTTP/1.1 200 OK") != NULL);
-    assert(strstr(response, "\"request_id\":\"req-1\"") != NULL);
     assert(strstr(response, "\"columns\":[\"id\",\"name\"]") != NULL);
     assert(strstr(response, "\"rows\":[[\"1\",\"alice\"],[\"2\",\"bob\"]]") != NULL);
 
@@ -352,7 +350,6 @@ static void test_query_end_to_end(void) {
                            response,
                            sizeof(response)) == 0);
     assert(strstr(response, "HTTP/1.1 400 Bad Request") != NULL);
-    assert(strstr(response, "\"request_id\":\"req-2\"") != NULL);
     assert(strstr(response, "\"code\":\"PARSE_ERROR\"") != NULL);
 
     http_server_request_stop();

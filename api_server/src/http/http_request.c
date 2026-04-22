@@ -7,7 +7,7 @@
 /*
  * 이 파일은 HTTP 요청의 JSON body를 우리 서버 내부 구조체로 바꾸는 일을 맡는다.
  * 외부 JSON 라이브러리를 쓰지 않기로 했기 때문에, 여기서는 우리가 필요한 만큼만
- * 직접 파싱한다. 현재 API가 필요한 값은 "sql"과 선택값 "request_id" 두 개다.
+ * 직접 파싱한다. 현재 API가 필요한 값은 "sql" 하나다.
  *
  * 이 파일을 읽을 때는 "문자열 위를 손가락으로 한 칸씩 움직이며 읽는다"고 생각하면 쉽다.
  * const char **p는 그 손가락의 위치를 함수 안에서 앞으로 옮기기 위한 포인터다.
@@ -17,11 +17,11 @@
  *   2. JSON body가 { 로 시작하는지 확인한다.
  *   3. "key": value 형태를 하나씩 읽는다.
  *   4. key가 "sql"이면 SQL 문자열을 저장한다.
- *   5. key가 "request_id"이면 요청 추적용 문자열을 저장한다.
+ *   5. "sql" 외의 key는 값만 건너뛰고 무시한다.
  *   6. 모르는 key는 값만 읽고 버린다.
  *   7. SQL이 한 문장인지 검사한다.
  *
- * 성공하면 out_request가 sql/request_id 문자열의 주인이 된다.
+ * 성공하면 out_request가 sql 문자열의 주인이 된다.
  * 실패하면 이 함수 안에서 중간에 만든 문자열을 전부 free한다.
  */
 
@@ -126,7 +126,7 @@ static int parse_json_string(const char **p, char **out) {
                 case 'u':
                     /*
                      * \u0037 같은 유니코드 escape도 최소한 처리한다.
-                     * 우리 SQL/request_id는 보통 ASCII라서 ASCII 범위만 실제 문자로
+                     * 우리 SQL은 보통 ASCII라서 ASCII 범위만 실제 문자로
                      * 바꾸고, 그 밖의 문자는 '?'로 둔다.
                      *
                      * 예:
@@ -246,20 +246,16 @@ void api_query_request_init(ApiQueryRequest *request) {
     if (!request) return;
 
     request->sql = NULL;
-    request->request_id = NULL;
 }
 
 void api_query_request_free(ApiQueryRequest *request) {
     /*
-     * http_parse_query_request()가 성공하면 sql/request_id는 malloc된 문자열이다.
+     * http_parse_query_request()가 성공하면 sql은 malloc된 문자열이다.
      * C에서는 이런 문자열을 직접 free해야 메모리 누수가 생기지 않는다.
-     *
-     * free(NULL)은 안전하므로 request_id가 없던 요청도 같은 함수로 정리할 수 있다.
      */
     if (!request) return;
 
     free(request->sql);
-    free(request->request_id);
     api_query_request_init(request);
 }
 
@@ -353,7 +349,6 @@ int http_parse_query_request(const char *content_type,
                              ApiQueryRequest *out_request) {
     const char *p = body;
     char *sql = NULL;
-    char *request_id = NULL;
     int status = HTTP_REQUEST_ERR_BAD_REQUEST;
 
     if (!content_type || !body || !out_request) {
@@ -362,7 +357,7 @@ int http_parse_query_request(const char *content_type,
 
     /*
      * out_request가 이전 요청 데이터를 들고 있을 수 있으므로 먼저 비운다.
-     * 성공하면 새 sql/request_id 소유권을 out_request가 가진다.
+     * 성공하면 새 sql 소유권을 out_request가 가진다.
      */
     api_query_request_free(out_request);
 
@@ -374,7 +369,7 @@ int http_parse_query_request(const char *content_type,
      * 최소 JSON object 파싱 흐름:
      * 1. body가 { 로 시작하는지 확인한다.
      * 2. "key": value 쌍을 하나씩 읽는다.
-     * 3. key가 sql/request_id면 문자열 값으로 저장한다.
+     * 3. key가 sql이면 문자열 값으로 저장한다.
      * 4. 모르는 key면 값만 건너뛰고 계속 진행한다.
      */
     skip_ws(&p);
@@ -410,10 +405,10 @@ int http_parse_query_request(const char *content_type,
         p++;
         skip_ws(&p);
 
-        if (strcmp(key, "sql") == 0 || strcmp(key, "request_id") == 0) {
+        if (strcmp(key, "sql") == 0) {
             /*
-             * 우리가 실제로 사용하는 필드는 sql과 request_id다.
-             * 두 필드 모두 문자열이어야 한다.
+             * 우리가 실제로 사용하는 필드는 sql 하나다.
+             * sql은 문자열이어야 한다.
              */
             parsed = parse_json_string(&p, &value);
             if (parsed <= 0) {
@@ -423,17 +418,12 @@ int http_parse_query_request(const char *content_type,
                 goto fail;
             }
 
-            if (strcmp(key, "sql") == 0) {
-                /*
-                 * 같은 key가 두 번 나오면 마지막 값을 사용한다.
-                 * 이전 값을 free하지 않으면 메모리 누수가 생긴다.
-                 */
-                free(sql);
-                sql = value;
-            } else {
-                free(request_id);
-                request_id = value;
-            }
+            /*
+             * 같은 key가 두 번 나오면 마지막 값을 사용한다.
+             * 이전 값을 free하지 않으면 메모리 누수가 생긴다.
+             */
+            free(sql);
+            sql = value;
         } else {
             /*
              * 요구사항: unknown field는 무시한다.
@@ -483,10 +473,9 @@ int http_parse_query_request(const char *content_type,
 
     /*
      * 여기까지 왔으면 성공이다.
-     * sql/request_id 포인터를 out_request에 넘겼으므로 이 함수에서는 free하지 않는다.
+     * sql 포인터를 out_request에 넘겼으므로 이 함수에서는 free하지 않는다.
      */
     out_request->sql = sql;
-    out_request->request_id = request_id;
     return HTTP_REQUEST_OK;
 
 fail:
@@ -495,6 +484,5 @@ fail:
      * out_request는 함수 시작 부분에서 이미 비워 둔 상태다.
      */
     free(sql);
-    free(request_id);
     return status;
 }

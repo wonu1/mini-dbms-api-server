@@ -57,13 +57,12 @@ static void test_select_success_response(void) {
     payload.select.row_count = 2;
 
     http_response_init(&response);
-    assert(http_build_query_success_response(&payload, "req-1", &response) ==
+    assert(http_build_query_success_response(&payload, &response) ==
            HTTP_RESPONSE_OK);
     assert_json_response(
         &response,
         200,
-        "{\"status\":\"ok\",\"request_id\":\"req-1\","
-        "\"data\":{\"columns\":[\"id\",\"name\"],"
+        "{\"status\":\"ok\",\"data\":{\"columns\":[\"id\",\"name\"],"
         "\"rows\":[[\"1\",\"kim\"],[\"2\",\"lee\"]],\"row_count\":2}}");
 
     http_response_free(&response);
@@ -83,7 +82,7 @@ static void test_insert_success_response(void) {
     payload.insert.generated_id = 42;
 
     http_response_init(&response);
-    assert(http_build_query_success_response(&payload, NULL, &response) ==
+    assert(http_build_query_success_response(&payload, &response) ==
            HTTP_RESPONSE_OK);
     assert_json_response(
         &response,
@@ -105,13 +104,12 @@ static void test_insert_without_generated_id(void) {
     payload.insert.affected_rows = 1;
 
     http_response_init(&response);
-    assert(http_build_query_success_response(&payload, "req-2", &response) ==
+    assert(http_build_query_success_response(&payload, &response) ==
            HTTP_RESPONSE_OK);
     assert_json_response(
         &response,
         200,
-        "{\"status\":\"ok\",\"request_id\":\"req-2\","
-        "\"data\":{\"affected_rows\":1}}");
+        "{\"status\":\"ok\",\"data\":{\"affected_rows\":1}}");
 
     http_response_free(&response);
 }
@@ -119,21 +117,19 @@ static void test_insert_without_generated_id(void) {
 static void test_error_response(void) {
     /*
      * 에러 응답은 status:"error"와 error 객체를 가진다.
-     * request_id가 있으면 실패 응답에도 그대로 돌려준다.
      */
     HttpResponse response;
 
     http_response_init(&response);
     assert(http_build_error_response(
                503,
-               "req-3",
                "QUEUE_FULL",
                "queue full",
                &response) == HTTP_RESPONSE_OK);
     assert_json_response(
         &response,
         503,
-        "{\"status\":\"error\",\"request_id\":\"req-3\","
+        "{\"status\":\"error\","
         "\"error\":{\"code\":\"QUEUE_FULL\",\"message\":\"queue full\"}}");
 
     http_response_free(&response);
@@ -180,13 +176,12 @@ static void test_json_escaping(void) {
     payload.select.row_count = 1;
 
     http_response_init(&response);
-    assert(http_build_query_success_response(&payload, "r\"\\\n", &response) ==
+    assert(http_build_query_success_response(&payload, &response) ==
            HTTP_RESPONSE_OK);
     assert_json_response(
         &response,
         200,
-        "{\"status\":\"ok\",\"request_id\":\"r\\\"\\\\\\n\","
-        "\"data\":{\"columns\":[\"na\\\"me\",\"line\"],"
+        "{\"status\":\"ok\",\"data\":{\"columns\":[\"na\\\"me\",\"line\"],"
         "\"rows\":[[\"a\\\\b\",\"x\\ny\\tz\"]],\"row_count\":1}}");
 
     http_response_free(&response);

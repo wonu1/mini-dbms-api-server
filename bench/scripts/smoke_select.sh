@@ -17,5 +17,5 @@ echo
 echo "-- smoke_select: POST ${BASE}/query"
 curl -sS -f -X POST "${BASE}/query" \
     -H "Content-Type: application/json" \
-    --data "{\"sql\":\"SELECT * FROM ${TABLE}\",\"request_id\":\"smoke-select-1\"}"
+    --data "{\"sql\":\"SELECT * FROM ${TABLE}\"}"
 echo

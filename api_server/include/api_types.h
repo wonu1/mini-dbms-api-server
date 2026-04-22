@@ -23,17 +23,15 @@ typedef struct {
 /*
  * /query 요청 본문을 파싱한 결과다.
  * 클라이언트 JSON:
- *   {"sql":"SELECT * FROM users;","request_id":"req-1"}
+ *   {"sql":"SELECT * FROM users;"}
  *
  * 파싱 후:
- *   sql        -> "SELECT * FROM users;"
- *   request_id -> "req-1" 또는 없으면 NULL
+ *   sql -> "SELECT * FROM users;"
  *
- * sql/request_id는 malloc된 문자열이므로 api_query_request_free()로 정리한다.
+ * sql은 malloc된 문자열이므로 api_query_request_free()로 정리한다.
  */
 typedef struct {
     char *sql;
-    char *request_id;
 } ApiQueryRequest;
 
 /*

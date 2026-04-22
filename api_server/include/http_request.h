@@ -28,7 +28,7 @@ typedef enum {
  * init/free 쌍으로 요청 메모리 소유권을 관리한다.
  *
  * C에는 자동으로 문자열 메모리를 정리해주는 기능이 없으므로,
- * malloc된 sql/request_id를 누가 free할지 규칙을 정해야 한다.
+ * malloc된 sql을 누가 free할지 규칙을 정해야 한다.
  * 이 모듈에서는 성공한 ApiQueryRequest는 호출자가 free하는 규칙을 쓴다.
  */
 void api_query_request_init(ApiQueryRequest *request);
@@ -59,8 +59,7 @@ int http_query_is_single_statement(const char *sql);
  * JSON 요청 body를 ApiQueryRequest로 바꾼다.
  *
  * content_type은 정확히 "application/json"이어야 한다.
- * body는 {"sql":"...","request_id":"..."} 형태의 JSON object여야 한다.
- * request_id는 선택값이라 없어도 된다.
+ * body는 {"sql":"..."} 형태의 JSON object여야 한다.
  *
  * out_request는 api_query_request_init() 이후 전달하는 것을 권장한다.
  * 성공 시 소유권은 호출자에게 넘어가며 api_query_request_free()로 정리한다.

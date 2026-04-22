@@ -13,13 +13,12 @@
 static void test_request_lifecycle(void) {
     /*
      * init/free가 기본 메모리 상태를 안전하게 만드는지 확인한다.
-     * request.sql/request_id가 NULL이면 아직 소유한 문자열이 없다는 뜻이다.
+     * request.sql이 NULL이면 아직 소유한 문자열이 없다는 뜻이다.
      */
     ApiQueryRequest request;
 
     api_query_request_init(&request);
     assert(request.sql == NULL);
-    assert(request.request_id == NULL);
 
     api_query_request_free(&request);
 }
@@ -27,8 +26,7 @@ static void test_request_lifecycle(void) {
 static void test_parse_sql_only(void) {
     /*
      * 가장 기본적인 성공 케이스다.
-     * JSON body에 sql만 있을 때 request.sql에 문자열이 복사되고,
-     * request_id는 없으므로 NULL이어야 한다.
+     * JSON body에 sql만 있을 때 request.sql에 문자열이 복사된다.
      */
     ApiQueryRequest request;
 
@@ -38,14 +36,12 @@ static void test_parse_sql_only(void) {
                "{\"sql\":\"SELECT * FROM users;\"}",
                &request) == HTTP_REQUEST_OK);
     assert(strcmp(request.sql, "SELECT * FROM users;") == 0);
-    assert(request.request_id == NULL);
 
     api_query_request_free(&request);
 }
 
-static void test_parse_request_id_and_unknown_field(void) {
+static void test_parse_unknown_fields(void) {
     /*
-     * request_id는 선택 필드다.
      * unknown 필드는 API 확장성을 위해 무시해야 한다.
      * 예를 들어 클라이언트가 debug 값을 보내도 sql 파싱은 성공해야 한다.
      */
@@ -55,10 +51,9 @@ static void test_parse_request_id_and_unknown_field(void) {
     assert(http_parse_query_request(
                "application/json",
                "{\"unknown\":123,\"sql\":\"SELECT name FROM users\","
-               "\"request_id\":\"req-7\"}",
+               "\"debug\":\"on\"}",
                &request) == HTTP_REQUEST_OK);
     assert(strcmp(request.sql, "SELECT name FROM users") == 0);
-    assert(strcmp(request.request_id, "req-7") == 0);
 
     api_query_request_free(&request);
 }
@@ -73,11 +68,9 @@ static void test_parse_escaped_strings(void) {
     api_query_request_init(&request);
     assert(http_parse_query_request(
                "application/json",
-               "{\"sql\":\"SELECT \\\"name\\\" FROM users\","
-               "\"request_id\":\"req-\\u0037\"}",
+               "{\"sql\":\"SELECT \\\"name\\\" FROM users\"}",
                &request) == HTTP_REQUEST_OK);
     assert(strcmp(request.sql, "SELECT \"name\" FROM users") == 0);
-    assert(strcmp(request.request_id, "req-7") == 0);
 
     api_query_request_free(&request);
 }
@@ -100,7 +93,7 @@ static void test_parse_failures(void) {
                &request) == HTTP_REQUEST_ERR_BAD_REQUEST);
     assert(http_parse_query_request(
                "application/json",
-               "{\"request_id\":\"req-1\"}",
+               "{\"debug\":\"missing sql\"}",
                &request) == HTTP_REQUEST_ERR_BAD_REQUEST);
     assert(http_parse_query_request(
                "application/json",
@@ -112,8 +105,9 @@ static void test_parse_failures(void) {
                &request) == HTTP_REQUEST_ERR_BAD_REQUEST);
     assert(http_parse_query_request(
                "application/json",
-               "{\"sql\":\"SELECT * FROM users\",\"request_id\":7}",
-               &request) == HTTP_REQUEST_ERR_BAD_REQUEST);
+               "{\"sql\":\"SELECT * FROM users\",\"debug\":7}",
+               &request) == HTTP_REQUEST_OK);
+    assert(strcmp(request.sql, "SELECT * FROM users") == 0);
 
     api_query_request_free(&request);
 }
@@ -142,7 +136,7 @@ int main(void) {
      */
     test_request_lifecycle();
     test_parse_sql_only();
-    test_parse_request_id_and_unknown_field();
+    test_parse_unknown_fields();
     test_parse_escaped_strings();
     test_parse_failures();
     test_single_statement_policy();

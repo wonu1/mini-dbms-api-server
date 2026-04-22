@@ -248,7 +248,6 @@ int http_build_health_response(HttpResponse *out_response) {
 }
 
 int http_build_query_success_response(const EngineResponse *engine_response,
-                                      const char *request_id,
                                       HttpResponse *out_response) {
     JsonBuffer buf;
     int i;
@@ -274,13 +273,8 @@ int http_build_query_success_response(const EngineResponse *engine_response,
 
     /*
      * 모든 성공 응답은 status:"ok"로 시작한다.
-     * request_id는 요청에 있었을 때만 넣는다.
      */
     if (!json_append_raw(&buf, "{\"status\":\"ok\"")) goto oom;
-    if (request_id) {
-        if (!json_append_raw(&buf, ",\"request_id\":")) goto oom;
-        if (!json_append_escaped(&buf, request_id)) goto oom;
-    }
     if (!json_append_raw(&buf, ",\"data\":")) goto oom;
 
     if (engine_response->type == ENGINE_RESULT_SELECT) {
@@ -360,7 +354,6 @@ oom:
 }
 
 int http_build_error_response(int status_code,
-                              const char *request_id,
                               const char *error_code,
                               const char *message,
                               HttpResponse *out_response) {
@@ -370,19 +363,11 @@ int http_build_error_response(int status_code,
         return HTTP_RESPONSE_ERR_INVALID_ARG;
     }
 
-    /*
-     * 실패 응답도 request_id가 있으면 그대로 돌려준다.
-     * 클라이언트는 이 값으로 어떤 요청이 실패했는지 쉽게 찾을 수 있다.
-     */
     http_response_free(out_response);
 
     if (!json_buffer_init(&buf)) return HTTP_RESPONSE_ERR_NO_MEMORY;
 
     if (!json_append_raw(&buf, "{\"status\":\"error\"")) goto oom;
-    if (request_id) {
-        if (!json_append_raw(&buf, ",\"request_id\":")) goto oom;
-        if (!json_append_escaped(&buf, request_id)) goto oom;
-    }
     if (!json_append_raw(&buf, ",\"error\":{\"code\":")) goto oom;
     if (!json_append_escaped(&buf, error_code)) goto oom;
     if (!json_append_raw(&buf, ",\"message\":")) goto oom;

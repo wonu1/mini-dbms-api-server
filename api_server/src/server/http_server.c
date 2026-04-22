@@ -115,7 +115,7 @@ static int send_minimal_error(int fd, int status_code, const char *body) {
 static void send_error(int fd, int status_code, const char *error_code, const char *message) {
     HttpResponse response;
     http_response_init(&response);
-    if (http_build_error_response(status_code, NULL, error_code, message, &response) == HTTP_RESPONSE_OK) {
+    if (http_build_error_response(status_code, error_code, message, &response) == HTTP_RESPONSE_OK) {
         send_http_response(fd, &response);
     } else {
         send_minimal_error(fd, status_code, message ? message : error_code);

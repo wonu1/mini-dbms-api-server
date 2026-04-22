@@ -35,12 +35,10 @@ static char *dup_text(const char *text) {
 /* 큐가 job을 깊은 복사하는지 보기 위해 요청을 직접 채운다. */
 static void fill_job(QueryJob *job,
                      int client_fd,
-                     const char *sql,
-                     const char *request_id) {
+                     const char *sql) {
     query_job_init(job);
     job->client_fd = client_fd;
     job->request.sql = dup_text(sql);
-    job->request.request_id = dup_text(request_id);
 }
 
 /* blocking pop 동작을 검증하기 위해 별도 스레드에서 pop을 수행한다. */
@@ -60,7 +58,7 @@ static void test_queue_push_pop_and_copy(void) {
     assert(job_queue_init(&queue, 2) == JOB_QUEUE_OK);
     assert(job_queue_size(&queue) == 0);
 
-    fill_job(&pushed, 101, "SELECT * FROM users WHERE id = 1;", "req-1");
+    fill_job(&pushed, 101, "SELECT * FROM users WHERE id = 1;");
     assert(job_queue_push(&queue, &pushed) == JOB_QUEUE_OK);
     assert(job_queue_size(&queue) == 1);
 
@@ -70,7 +68,6 @@ static void test_queue_push_pop_and_copy(void) {
     assert(job_queue_pop(&queue, &popped) == JOB_QUEUE_OK);
     assert(popped.client_fd == 101);
     assert(strcmp(popped.request.sql, "SELECT * FROM users WHERE id = 1;") == 0);
-    assert(strcmp(popped.request.request_id, "req-1") == 0);
     assert(job_queue_size(&queue) == 0);
 
     query_job_free(&popped);
@@ -86,8 +83,8 @@ static void test_queue_full_and_close(void) {
 
     assert(job_queue_init(&queue, 1) == JOB_QUEUE_OK);
 
-    fill_job(&first, 201, "INSERT INTO users (name, age, email) VALUES ('a', 20, 'a@example.com');", "req-2");
-    fill_job(&second, 202, "INSERT INTO users (name, age, email) VALUES ('b', 21, 'b@example.com');", "req-3");
+    fill_job(&first, 201, "INSERT INTO users (name, age, email) VALUES ('a', 20, 'a@example.com');");
+    fill_job(&second, 202, "INSERT INTO users (name, age, email) VALUES ('b', 21, 'b@example.com');");
 
     assert(job_queue_push(&queue, &first) == JOB_QUEUE_OK);
     assert(job_queue_push(&queue, &second) == JOB_QUEUE_ERR_FULL);
@@ -98,7 +95,8 @@ static void test_queue_full_and_close(void) {
 
     query_job_init(&popped);
     assert(job_queue_pop(&queue, &popped) == JOB_QUEUE_OK);
-    assert(strcmp(popped.request.request_id, "req-2") == 0);
+    assert(strcmp(popped.request.sql,
+                  "INSERT INTO users (name, age, email) VALUES ('a', 20, 'a@example.com');") == 0);
     query_job_free(&popped);
 
     query_job_init(&popped);
@@ -125,13 +123,13 @@ static void test_blocking_pop_unblocks_on_push(void) {
 
     assert(pthread_create(&thread, NULL, pop_thread_main, &result) == 0);
 
-    fill_job(&pushed, 301, "SELECT * FROM users WHERE id = 2;", "req-4");
+    fill_job(&pushed, 301, "SELECT * FROM users WHERE id = 2;");
     assert(job_queue_push(&queue, &pushed) == JOB_QUEUE_OK);
     assert(pthread_join(thread, NULL) == 0);
 
     assert(result.status == JOB_QUEUE_OK);
     assert(result.job.client_fd == 301);
-    assert(strcmp(result.job.request.request_id, "req-4") == 0);
+    assert(strcmp(result.job.request.sql, "SELECT * FROM users WHERE id = 2;") == 0);
 
     query_job_free(&pushed);
     query_job_free(&result.job);

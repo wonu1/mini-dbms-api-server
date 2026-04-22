@@ -193,7 +193,6 @@ static void server_process_query_job(QueryJob *job, void *context) {
 
     if (!job->request.sql) {
         if (http_build_error_response(400,
-                                      job->request.request_id,
                                       "BAD_REQUEST",
                                       "missing SQL statement",
                                       &http_response) == HTTP_RESPONSE_OK) {
@@ -210,7 +209,6 @@ static void server_process_query_job(QueryJob *job, void *context) {
                                     &error_message);
     if (execute_rc == ENGINE_API_OK) {
         if (http_build_query_success_response(&engine_response,
-                                              job->request.request_id,
                                               &http_response) == HTTP_RESPONSE_OK) {
             (void)server_send_http_response(job->client_fd, &http_response);
         } else {
@@ -226,7 +224,6 @@ static void server_process_query_job(QueryJob *job, void *context) {
     message = error_message ? error_message : "engine request failed";
 
     if (http_build_error_response(status_code,
-                                  job->request.request_id,
                                   http_error_code,
                                   message,
                                   &http_response) == HTTP_RESPONSE_OK) {

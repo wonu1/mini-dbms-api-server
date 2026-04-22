@@ -28,10 +28,9 @@ static char *job_queue_dup_string(const char *src) {
 }
 
 /* 큐는 job의 소유권을 가져야 하므로 얕은 복사가 아니라 깊은 복사를 사용한다. */
-/* src QueryJob의 fd/sql/request_id를 dst 슬롯으로 깊은 복사한다. */
+/* src QueryJob의 fd/sql을 dst 슬롯으로 깊은 복사한다. */
 static int job_queue_copy_job(QueryJob *dst, const QueryJob *src) {
     char *sql_copy = NULL;
-    char *request_id_copy = NULL;
 
     if (!dst || !src) return JOB_QUEUE_ERR_INVALID_ARG;
 
@@ -40,18 +39,9 @@ static int job_queue_copy_job(QueryJob *dst, const QueryJob *src) {
         if (!sql_copy) return JOB_QUEUE_ERR_NO_MEMORY;
     }
 
-    if (src->request.request_id) {
-        request_id_copy = job_queue_dup_string(src->request.request_id);
-        if (!request_id_copy) {
-            free(sql_copy);
-            return JOB_QUEUE_ERR_NO_MEMORY;
-        }
-    }
-
     query_job_free(dst);
     dst->client_fd = src->client_fd;
     dst->request.sql = sql_copy;
-    dst->request.request_id = request_id_copy;
     return JOB_QUEUE_OK;
 }
 

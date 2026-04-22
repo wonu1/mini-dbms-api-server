@@ -17,5 +17,5 @@ echo
 echo "-- smoke_insert: POST ${BASE}/query"
 curl -sS -f -X POST "${BASE}/query" \
     -H "Content-Type: application/json" \
-    --data "{\"sql\":\"INSERT INTO ${TABLE} (name, age) VALUES ('smoke', 30)\",\"request_id\":\"smoke-insert-1\"}"
+    --data "{\"sql\":\"INSERT INTO ${TABLE} (name, age) VALUES ('smoke', 30)\"}"
 echo

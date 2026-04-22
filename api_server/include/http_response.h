@@ -55,10 +55,8 @@ int http_build_health_response(HttpResponse *out_response);
 /*
  * 엔진 실행 성공 결과를 JSON 응답으로 만든다.
  * SELECT면 columns/rows/row_count를 담고, INSERT면 affected_rows를 담는다.
- * request_id가 NULL이 아니면 응답 최상위에 그대로 echo한다.
  */
 int http_build_query_success_response(const EngineResponse *engine_response,
-                                      const char *request_id,
                                       HttpResponse *out_response);
 
 /*
@@ -66,7 +64,6 @@ int http_build_query_success_response(const EngineResponse *engine_response,
  * status_code는 실제 HTTP status가 되고, error_code/message는 body의 error 객체에 들어간다.
  */
 int http_build_error_response(int status_code,
-                              const char *request_id,
                               const char *error_code,
                               const char *message,
                               HttpResponse *out_response);
