@@ -437,10 +437,12 @@ static ResultSet *select_impl(const SelectStmt *stmt, const TableSchema *schema)
 
 static int build_insert_row_values(const InsertStmt *stmt,
                                    const TableSchema *schema,
-                                   char ***out_values) {
+                                   char ***out_values,
+                                   int *out_generated_id) {
     char **row_values;
     int auto_col;
     int i;
+    int generated_id = 0;
 
     if (!stmt || !schema || !out_values) return SQL_ERR;
 
@@ -489,6 +491,7 @@ static int build_insert_row_values(const InsertStmt *stmt,
         }
 
         snprintf(id_buf, sizeof(id_buf), "%d", next_id);
+        generated_id = next_id;
         row_values[auto_col] = dup_string(id_buf);
         if (!row_values[auto_col]) {
             free_row_values(row_values, schema->column_count);
@@ -536,6 +539,7 @@ static int build_insert_row_values(const InsertStmt *stmt,
     }
 
     *out_values = row_values;
+    if (out_generated_id) *out_generated_id = generated_id;
     return SQL_OK;
 }
 
@@ -543,17 +547,21 @@ ResultSet *db_select(const SelectStmt *stmt, const TableSchema *schema) {
     return select_impl(stmt, schema);
 }
 
-int db_insert(const InsertStmt *stmt, const TableSchema *schema) {
+static int insert_impl(const InsertStmt *stmt,
+                       const TableSchema *schema,
+                       int *out_generated_id) {
     char **row_values = NULL;
     char path[256];
     FILE *fp;
     long offset;
     int id_col;
     int age_col;
+    int generated_id = 0;
 
+    if (out_generated_id) *out_generated_id = 0;
     if (!stmt || !schema) return SQL_ERR;
 
-    if (build_insert_row_values(stmt, schema, &row_values) != SQL_OK) {
+    if (build_insert_row_values(stmt, schema, &row_values, &generated_id) != SQL_OK) {
         return SQL_ERR;
     }
 
@@ -598,8 +606,19 @@ int db_insert(const InsertStmt *stmt, const TableSchema *schema) {
         }
     }
 
+    if (out_generated_id) *out_generated_id = generated_id;
     free_row_values(row_values, schema->column_count);
     return SQL_OK;
+}
+
+int db_insert(const InsertStmt *stmt, const TableSchema *schema) {
+    return insert_impl(stmt, schema, NULL);
+}
+
+int db_insert_with_generated_id(const InsertStmt *stmt,
+                                const TableSchema *schema,
+                                int *out_generated_id) {
+    return insert_impl(stmt, schema, out_generated_id);
 }
 
 int executor_run(const ASTNode *node, const TableSchema *schema) {

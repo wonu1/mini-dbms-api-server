@@ -147,6 +147,9 @@ typedef struct {
 int        executor_run(const ASTNode *node, const TableSchema *schema);
 ResultSet *db_select(const SelectStmt *stmt, const TableSchema *schema);
 int        db_insert(const InsertStmt *stmt, const TableSchema *schema);
+int        db_insert_with_generated_id(const InsertStmt *stmt,
+                                       const TableSchema *schema,
+                                       int *out_generated_id);
 void       result_free(ResultSet *rs);
 
 #endif /* INTERFACE_H */
