@@ -3,6 +3,18 @@ CFLAGS ?= -std=c99 -Wall -Wextra -Iapi_server/include -Idb_engine/include -Ibenc
 
 BUILD_DIR := build
 
+DB_ENGINE_RUNTIME_SRCS := \
+	db_engine/src/runtime/engine_api.c \
+	db_engine/src/runtime/engine_runtime.c
+
+DB_ENGINE_CORE_SRCS := \
+	db_engine/src/input/lexer.c \
+	db_engine/src/parser/parser.c \
+	db_engine/src/schema/schema.c \
+	db_engine/src/executor/executor.c \
+	db_engine/src/bptree/bptree.c \
+	db_engine/src/index/index_manager.c
+
 API_SERVER_COMMON_SRCS := \
 	api_server/src/server/server_app.c \
 	api_server/src/server/http_server.c \
@@ -10,8 +22,8 @@ API_SERVER_COMMON_SRCS := \
 	api_server/src/http/http_response.c \
 	api_server/src/concurrency/job_queue.c \
 	api_server/src/concurrency/thread_pool.c \
-	db_engine/src/runtime/engine_api.c \
-	db_engine/src/runtime/engine_runtime.c
+	$(DB_ENGINE_RUNTIME_SRCS) \
+	$(DB_ENGINE_CORE_SRCS)
 
 API_SERVER_BIN := $(BUILD_DIR)/api_server_stub
 BENCH_CLIENT_BIN := $(BUILD_DIR)/bench_client
@@ -37,7 +49,7 @@ $(BENCH_CLIENT_BIN): bench/client/main.c bench/client/bench_client.c | $(BUILD_D
 $(BUILD_DIR)/test_http_request: api_server/tests/test_http_request.c api_server/src/http/http_request.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(BUILD_DIR)/test_http_response: api_server/tests/test_http_response.c api_server/src/http/http_response.c db_engine/src/runtime/engine_api.c | $(BUILD_DIR)
+$(BUILD_DIR)/test_http_response: api_server/tests/test_http_response.c api_server/src/http/http_response.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(BUILD_DIR)/test_job_queue: api_server/tests/test_job_queue.c api_server/src/concurrency/job_queue.c api_server/src/http/http_request.c | $(BUILD_DIR)
@@ -46,7 +58,7 @@ $(BUILD_DIR)/test_job_queue: api_server/tests/test_job_queue.c api_server/src/co
 $(BUILD_DIR)/test_server_app: api_server/tests/test_server_app.c $(API_SERVER_COMMON_SRCS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(BUILD_DIR)/test_engine_runtime: db_engine/tests/test_engine_runtime.c db_engine/src/runtime/engine_api.c db_engine/src/runtime/engine_runtime.c | $(BUILD_DIR)
+$(BUILD_DIR)/test_engine_runtime: db_engine/tests/test_engine_runtime.c $(DB_ENGINE_RUNTIME_SRCS) $(DB_ENGINE_CORE_SRCS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
 test: $(TEST_BINS)

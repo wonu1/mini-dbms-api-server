@@ -1,11 +1,20 @@
 #include <errno.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#  include <winsock2.h>
+#else
+#  include <sys/socket.h>
+#  include <unistd.h>
+#endif
+
 #include "../../include/server_app.h"
 #include "../../include/http_server.h"
+#include "../../include/http_response.h"
 #include "../../include/job_queue.h"
 #include "../../include/thread_pool.h"
 #include "engine_api.h"
@@ -15,6 +24,183 @@
 #define SERVER_APP_PORT_MAX 65535
 #define SERVER_APP_WORKERS_MAX 1024
 #define SERVER_APP_QUEUE_CAPACITY_MAX 65536
+
+static int server_write_all(int fd, const char *data, size_t len) {
+    size_t sent = 0;
+
+    while (sent < len) {
+        ssize_t written = send(fd, data + sent, len - sent, 0);
+
+        if (written < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+
+        sent += (size_t)written;
+    }
+
+    return 0;
+}
+
+static const char *server_reason_phrase(int status_code) {
+    switch (status_code) {
+        case 200: return "OK";
+        case 201: return "Created";
+        case 400: return "Bad Request";
+        case 404: return "Not Found";
+        case 405: return "Method Not Allowed";
+        case 413: return "Payload Too Large";
+        case 415: return "Unsupported Media Type";
+        case 422: return "Unprocessable Entity";
+        case 500: return "Internal Server Error";
+        case 501: return "Not Implemented";
+        case 503: return "Service Unavailable";
+        default:  return "OK";
+    }
+}
+
+static int server_send_http_response(int fd, const HttpResponse *response) {
+    char header[512];
+    size_t body_len;
+    const char *content_type;
+    int header_len;
+
+    if (fd < 0 || !response) return -1;
+
+    body_len = response->body ? strlen(response->body) : 0;
+    content_type = response->content_type[0]
+        ? response->content_type
+        : "application/json";
+
+    header_len = snprintf(header,
+                          sizeof(header),
+                          "HTTP/1.1 %d %s\r\n"
+                          "Content-Type: %s\r\n"
+                          "Content-Length: %zu\r\n"
+                          "Connection: close\r\n"
+                          "\r\n",
+                          response->status_code,
+                          server_reason_phrase(response->status_code),
+                          content_type,
+                          body_len);
+    if (header_len < 0 || (size_t)header_len >= sizeof(header)) {
+        return -1;
+    }
+
+    if (server_write_all(fd, header, (size_t)header_len) != 0) {
+        return -1;
+    }
+
+    if (body_len > 0 && server_write_all(fd, response->body, body_len) != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static void server_send_minimal_error(int fd, int status_code, const char *body) {
+    char response[256];
+    const char *text = body ? body : "";
+    int written;
+
+    if (fd < 0) return;
+
+    written = snprintf(response,
+                       sizeof(response),
+                       "HTTP/1.1 %d %s\r\n"
+                       "Content-Type: text/plain\r\n"
+                       "Content-Length: %zu\r\n"
+                       "Connection: close\r\n"
+                       "\r\n%s",
+                       status_code,
+                       server_reason_phrase(status_code),
+                       strlen(text),
+                       text);
+    if (written < 0 || (size_t)written >= sizeof(response)) {
+        return;
+    }
+
+    (void)server_write_all(fd, response, (size_t)written);
+}
+
+static void server_close_client_fd(int *fd) {
+    if (!fd || *fd < 0) return;
+
+#ifdef _WIN32
+    closesocket(*fd);
+#else
+    close(*fd);
+#endif
+    *fd = -1;
+}
+
+static void server_process_query_job(QueryJob *job, void *context) {
+    HttpResponse http_response;
+    EngineResponse engine_response;
+    EngineErrorCode error_code = ENGINE_ERR_RUNTIME;
+    char *error_message = NULL;
+    int execute_rc;
+    int status_code;
+    const char *http_error_code;
+    const char *message;
+
+    (void)context;
+
+    if (!job) return;
+
+    http_response_init(&http_response);
+    memset(&engine_response, 0, sizeof(engine_response));
+
+    if (!job->request.sql) {
+        if (http_build_error_response(400,
+                                      job->request.request_id,
+                                      "BAD_REQUEST",
+                                      "missing SQL statement",
+                                      &http_response) == HTTP_RESPONSE_OK) {
+            (void)server_send_http_response(job->client_fd, &http_response);
+        } else {
+            server_send_minimal_error(job->client_fd, 400, "missing SQL statement");
+        }
+        goto cleanup;
+    }
+
+    execute_rc = engine_execute_sql(job->request.sql,
+                                    &engine_response,
+                                    &error_code,
+                                    &error_message);
+    if (execute_rc == ENGINE_API_OK) {
+        if (http_build_query_success_response(&engine_response,
+                                              job->request.request_id,
+                                              &http_response) == HTTP_RESPONSE_OK) {
+            (void)server_send_http_response(job->client_fd, &http_response);
+        } else {
+            server_send_minimal_error(job->client_fd,
+                                      500,
+                                      "failed to build query response");
+        }
+        goto cleanup;
+    }
+
+    status_code = http_status_from_engine_error(error_code);
+    http_error_code = http_error_code_from_engine_error(error_code);
+    message = error_message ? error_message : "engine request failed";
+
+    if (http_build_error_response(status_code,
+                                  job->request.request_id,
+                                  http_error_code,
+                                  message,
+                                  &http_response) == HTTP_RESPONSE_OK) {
+        (void)server_send_http_response(job->client_fd, &http_response);
+    } else {
+        server_send_minimal_error(job->client_fd, status_code, message);
+    }
+
+cleanup:
+    engine_response_free(&engine_response);
+    http_response_free(&http_response);
+    free(error_message);
+    server_close_client_fd(&job->client_fd);
+}
 
 static int parse_positive_int(const char *text, int *out_value) {
     char *end = NULL;
@@ -163,6 +349,11 @@ int server_app_run(const ServerConfig *config) {
         goto cleanup;
     }
     pool_inited = 1;
+
+    if (thread_pool_set_handler(&pool, server_process_query_job, NULL) != THREAD_POOL_OK) {
+        exit_code = SERVER_APP_ERR_BOOTSTRAP;
+        goto cleanup;
+    }
 
     if (thread_pool_start(&pool) != THREAD_POOL_OK) {
         exit_code = SERVER_APP_ERR_BOOTSTRAP;
