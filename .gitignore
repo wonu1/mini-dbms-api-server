@@ -1,0 +1,82 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Common build / coverage outputs
+coverage/
+dist/
+build/
+
+# Node.js
+node_modules/
+.npm/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# C / native build outputs
+*.d
+*.o
+*.ko
+*.obj
+*.elf
+*.ilk
+*.map
+*.exp
+*.gch
+*.pch
+*.lib
+*.a
+*.la
+*.lo
+*.dll
+*.so
+*.so.*
+*.dylib
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+*.dSYM/
+*.su
+*.idb
+*.pdb
+*.dwo
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# DB engine build targets
+db_engine/sqlp
+db_engine/gen_data
+db_engine/test_bptree
+db_engine/test_index
+db_engine/test_input
+db_engine/test_parser
+db_engine/test_schema
+db_engine/test_executor
+
+# DB engine runtime outputs
+db_engine/data/*.dat
+db_engine/logs/*.log
+
+# Local tool files
+.codex
+AGENTS.md
+agents.md
