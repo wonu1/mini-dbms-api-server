@@ -20,7 +20,7 @@ B+ Tree 인덱스, 스레드 풀, Atomic Lock까지
 <br><br>
 
 
-`C99` · `Socket` · `Thread Pool` · `B+ Tree` · `Atomic Lock` · **외부 라이브러리 0개**
+`C99` · `Socket` · `Thread Pool` · `B+ Tree` · `Atomic Lock`
 
 ---
 
