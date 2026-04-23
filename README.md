@@ -14,10 +14,6 @@
 C언어로 만든 HTTP 기반 SQL 처리 서버다.  
 클라이언트가 `curl`로 SQL을 보내면 서버가 파싱하고 실행해서 JSON으로 응답한다.
 
-소켓, HTTP 파싱, JSON 생성, SQL 엔진,  
-B+ Tree 인덱스, 스레드 풀, Atomic Lock까지  
-외부 라이브러리 없이 전부 직접 구현했다.
-
 이 저장소는 크게 두 층으로 나뉜다.
 
 - `db_engine/`: 파일 기반 mini DBMS 코어
@@ -28,25 +24,6 @@ B+ Tree 인덱스, 스레드 풀, Atomic Lock까지
 <p align="center">
   <img src="./architecture.svg" alt="Architecture" width="100%"/>
 </p>
-
-## 쟁점
-
-핵심 구현 포인트는 아래와 같다.
-
-- **엔진/서버 경계 분리**
-  - 서버는 SQL 문자열을 받고, 엔진 런타임이 파싱·검증·실행·결과 변환을 맡는다.
-- **파일 기반 저장 구조**
-  - 스키마는 `db_engine/schema/*.schema`, 데이터는 `db_engine/data/*.dat`에 저장된다.
-- **인덱스 최적화**
-  - `id`, `age` 컬럼에 대해 B+ Tree 인덱스를 사용한다.
-- **동시성 처리**
-  - HTTP 서버는 thread pool + job queue로 요청을 병렬 처리한다.
-
-구현/실험 관점에서 참고할 그림:
-
-![이미지1](./image%20(2).png)
-
-![이미지2](./image%20(1).png)
 
 ## 핵심 기능
 
@@ -266,34 +243,6 @@ Content-Type: application/json
 INSERT INTO users (name, age, email) VALUES (...)
 ```
 
-## 엣지 케이스
-
-### Content-Type 누락
-
-`Content-Type: application/json` 헤더 없이 요청하면 거부한다.  
-plain text로 SQL을 보내도 `invalid query payload`를 응답한다.
-
-### 다중 SQL 문장 차단
-
-`SELECT * FROM users; DROP TABLE users;` 같이  
-세미콜론으로 여러 문장을 보내면 거부한다.  
-`http_query_is_single_statement()`에서 이를 차단한다.
-
-### 서버 재시작 시 Address already in use
-
-이전 서버 프로세스가 남아있으면 같은 포트를 못 연다.  
-`setsockopt(SO_REUSEADDR)`로 해결했고,  
-그래도 안 되면 `ss -tlnp | grep 8080`으로 PID를 찾아 정리해야 한다.
-
-## 역할 분담
-
-| 파트 | 담당 | 주요 파일 | 설명 |
-|:----:|:----:|:---------|:-----|
-| A. 서버 코어 | - | `main.c`, `server_app.c`, `http_server.c` | 서버 부팅, 소켓, 연결 수신 |
-| B. HTTP 처리 | - | `http_request.c`, `http_response.c` | 요청 파싱, JSON 응답 생성 |
-| C. 동시성 | - | `thread_pool.c`, `job_queue.c` | 스레드 풀, 작업 큐 |
-| D. 엔진 연동 | - | `engine_runtime.c`, `engine_api.c` | Lock, DB 엔진 초기화 |
-
 ## 테스트
 
 루트 테스트:
@@ -368,7 +317,7 @@ bash bench/scripts/run_worker_sweep.sh
 단일 `SELECT` 처리량:
 
 <p align="center">
-  <img src="./bench/results/image_digitized_user_worker_sweep_20260423/select_stabilized_only_title_clean.png" alt="Select Throughput" width="100%"/>
+  <img src="./readme_select_throughput.png" alt="Select Throughput" width="100%"/>
 </p>
 
 **짧은 `SELECT` 해석**
@@ -381,7 +330,7 @@ bash bench/scripts/run_worker_sweep.sh
 `INSERT`와 `SELECT BETWEEN` 비교:
 
 <p align="center">
-  <img src="./bench/results/image_digitized_user_worker_sweep_20260423/insert_and_select_between.png" alt="Insert and Select Between Throughput" width="100%"/>
+  <img src="./readme_insert_select_between_throughput.png" alt="Insert and Select Between Throughput" width="100%"/>
 </p>
 
 **`SELECT BETWEEN 1 AND 100` 해석**
